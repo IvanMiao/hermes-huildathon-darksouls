@@ -147,7 +147,8 @@ Implemented: a Convex Action calls ElevenLabs Multilingual v2 with an explicit
 high-fidelity character-voice profile, stores the MP3 in Convex File Storage,
 and the runtime preloads HTTPS voice artifacts for a single `phase_two`
 playback. Production credential state is managed outside the repository; the
-ten-transition audio gate is still required before P5 closes.
+FABLE's approved cached demo line uses the user-selected Eleven v3 dramatic
+render. The ten-transition audio gate is still required before P5 closes.
 
 ## P6 — Convex evidence layer and Cloudflare delivery
 
