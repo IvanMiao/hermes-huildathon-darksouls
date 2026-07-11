@@ -14,7 +14,7 @@ Soulloom 不是一个普通的“AI 生成小游戏”工具，而是一间由 H
 
 > I smell fear.
 
-它被转化为一个 gothic soulslike 微型 Boss 战：玩家对抗带有 Claude/Fable 气质暗示的 Boss **The Fable of Absolute Agreement**。Boss 在二阶段大招或败北时，通过 ElevenLabs 说：
+它被转化为一个 gothic soulslike 微型 Boss 战：玩家对抗带有 Claude/Fable 气质暗示的 Boss **FABLE, ORACLE OF THE LAST ASSENT**。Boss 在二阶段大招或败北时，通过 ElevenLabs 说：
 
 > You are absolutely right!
 
@@ -141,7 +141,7 @@ Tweet 只是最直观、最有传播力的输入界面。产品本质是：
 
 Boss 名称：
 
-> **The Fable of Absolute Agreement**
+> **FABLE, ORACLE OF THE LAST ASSENT**
 
 视觉方向：
 
@@ -221,7 +221,7 @@ PREY SLAUGHTERED
   "slug": "i-smell-fear",
   "title": "The Scent of Fear",
   "boss": {
-    "name": "The Fable of Absolute Agreement",
+    "name": "FABLE, ORACLE OF THE LAST ASSENT",
     "palette": ["#17131f", "#d97745", "#ede1cf"],
     "maxHp": 900,
     "phaseTwoAt": 0.5,
@@ -647,7 +647,7 @@ I smell fear.
 
 ```text
 I defeated @tibo's tweet.
-The Fable of Absolute Agreement
+FABLE, ORACLE OF THE LAST ASSENT
 02:14 · 1 death · 7 perfect dodges
 ```
 

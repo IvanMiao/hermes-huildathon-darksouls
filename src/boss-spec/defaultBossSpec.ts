@@ -5,7 +5,7 @@ export const DEFAULT_BOSS_SPEC = {
   title: "I SMELL FEAR",
   boss: {
     name: "FABLE",
-    title: "ORACLE OF ABSOLUTE AGREEMENT",
+    title: "ORACLE OF THE LAST ASSENT",
     palette: ["#17131f", "#d97745", "#ede1cf"],
     maxHp: 900,
     phaseTwoAt: 0.5,
