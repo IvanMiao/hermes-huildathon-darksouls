@@ -4,6 +4,6 @@ export default defineConfig({
   base: "./",
   test: {
     environment: "node",
-    include: ["src/**/*.test.ts"],
+    include: ["src/**/*.test.ts", "runner/**/*.test.ts"],
   },
 });

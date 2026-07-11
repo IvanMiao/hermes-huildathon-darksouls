@@ -1,0 +1,16 @@
+[
+  {
+    "id": "direct-pass",
+    "input": "I smell fear.",
+    "expectedStatus": "published",
+    "expectedRetryOwners": []
+  },
+  {
+    "id": "encounter-repair",
+    "input": "Agreement should arrive before anyone can react.",
+    "expectedStatus": "published",
+    "expectedRetryOwners": ["Encounter Designer"],
+    "expectedBefore": { "phaseTwoOrder": ["charge", "sweep", "nova"] },
+    "expectedAfter": { "phaseTwoOrder": ["charge", "charge", "sweep", "nova"] }
+  }
+]
