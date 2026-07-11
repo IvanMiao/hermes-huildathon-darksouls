@@ -8,6 +8,8 @@
     "build": "vite build",
     "test": "vitest run",
     "test:e2e": "playwright test",
+    "studio": "tsx runner/cli.ts",
+    "studio:fixtures": "tsx runner/runFixtures.ts",
     "typecheck": "tsc --noEmit",
     "verify": "npm test && npm run typecheck && npm run build && npm run test:e2e"
   },
@@ -17,7 +19,9 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.61.1",
+    "@types/node": "^24.13.3",
     "@types/three": "^0.185.1",
+    "tsx": "^4.23.0",
     "typescript": "5.8.3",
     "vite": "^6.4.3",
     "vitest": "^3.2.7"
