@@ -12,9 +12,9 @@ Order work by the shortest path to a reliable two-minute demo:
 
 ## P0 — Runtime and contract foundation (completed)
 
-**Files:** `src/boss-spec/*`, `src/game/BootScene.ts`, `src/game/createGame.ts`, project config
+**Files:** `src/boss-spec/*`, `src/game/createBattleScene.ts`, project config
 
-**Goal:** A real Phaser canvas boots from a strict, normalized `BossSpec`; malformed specs cannot enter the runtime.
+**Goal:** A real Three.js canvas boots from a strict, normalized `BossSpec`; malformed specs cannot enter the runtime.
 
 **Verify:**
 
@@ -27,9 +27,9 @@ npm run build
 
 Exit gate: default spec renders in a browser with no console errors.
 
-## P1 — Playable combat vertical slice
+## P1 — Playable combat vertical slice (implemented; manual play gate pending)
 
-**Files:** `src/game/BattleScene.ts`, `src/game/entities/*`, `src/game/systems/*`, combat unit tests
+**Files:** `src/game/createBattleScene.ts`, `src/game/combat/*`, combat unit tests
 
 **Goal:** One complete 60–75 second encounter: movement, auto-facing strike, dodge/i-frames, health, sweep/charge/nova telegraphs, phase transition, death, victory, and restart.
 
@@ -78,7 +78,7 @@ Tasks:
 
 **Verify:** two inputs produce different artifacts or routing; one recorded real failure is repaired and passes regression.
 
-Exit gate: no agent edits Phaser runtime files, and an unpassed run cannot publish.
+Exit gate: no agent edits Three.js runtime files, and an unpassed run cannot publish.
 
 ## P4 — Minimal Studio and Control Room UI
 
