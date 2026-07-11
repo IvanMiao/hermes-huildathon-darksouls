@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 test("creates a deterministic fixture run without a model call", async ({ page }) => {
-  await page.goto("/studio");
+  await page.goto("/");
 
   await expect(page.getByRole("heading", { name: /One internet moment in/i })).toBeVisible();
   await expect(page.getByText("No model call will be made.")).toBeVisible();
@@ -67,7 +67,7 @@ test("opens only published game routes", async ({ page }) => {
 test("keeps Studio and Control Room within a small viewport", async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
 
-  for (const route of ["/studio", "/control-room/fixture-encounter-repair"]) {
+  for (const route of ["/", "/studio", "/control-room/fixture-encounter-repair"]) {
     await page.goto(route);
     const hasHorizontalOverflow = await page.evaluate(() => (
       document.documentElement.scrollWidth > window.innerWidth

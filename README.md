@@ -86,12 +86,13 @@ The current repository implements the constrained `BossSpec`, playable Three.js
 runtime, deterministic P2 release gate, the P3 local autonomous studio loop, and
 the `GameRecipeV0` encounter grammar. The runtime supports three verified
 packages: Duel, Procession (closing arena + charge chain), and Revelation
-(phase-two nova safety inversion). Try them locally with:
+(phase-two nova safety inversion). Try them locally in the development
+playground with:
 
 ```text
-/?recipe=duel
-/?recipe=procession
-/?recipe=revelation
+/playground?recipe=duel
+/playground?recipe=procession
+/playground?recipe=revelation
 ```
 
 The development-only `window.__SOULLOOM__` bridge is removed from production
@@ -99,5 +100,8 @@ builds. The P3 orchestration core accepts specialist adapters; the bundled local
 adapters keep fixtures offline and reproducible, while a Hermes delegation
 adapter can use the same artifact boundary without touching runtime code. A
 fixture-backed Studio and Control Room can replay the release evidence locally;
-live Hermes delegation, Convex evidence, audio, and Cloudflare delivery remain
-the next integration stages.
+live Hermes delegation and Cloudflare delivery remain future integration
+stages. A time-boxed Convex + ElevenLabs path is scaffolded under `convex/`:
+after configuring `.env.local` and the two Convex secrets described in
+`convex/README.md`, real CLI runs generate one stored voice artifact and mirror
+their complete P3 evidence without changing the offline fallback behavior.

@@ -10,13 +10,13 @@ export function createPageShell(active: "studio" | "control-room"): HTMLElement 
   const header = document.createElement("header");
   header.className = "studio-header";
   header.innerHTML = `
-    <a class="studio-brand" href="/studio" aria-label="Soulloom Studio home">
+    <a class="studio-brand" href="/" aria-label="Soulloom Studio home">
       <span class="brand-mark" aria-hidden="true"></span>
       <span>SOULLOOM</span>
       <small>AUTONOMOUS GAME STUDIO</small>
     </a>
     <nav class="studio-nav" aria-label="Primary navigation">
-      <a href="/studio" ${active === "studio" ? 'aria-current="page"' : ""}>Create</a>
+      <a href="/" ${active === "studio" ? 'aria-current="page"' : ""}>Create</a>
       <a href="/control-room/fixture-encounter-repair" ${active === "control-room" ? 'aria-current="page"' : ""}>Control Room</a>
     </nav>
   `;

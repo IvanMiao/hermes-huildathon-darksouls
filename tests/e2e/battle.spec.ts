@@ -11,7 +11,7 @@ async function trigger(page: Page, scenario: string): Promise<void> {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
   await waitForDebugBridge(page);
 });
 
@@ -111,7 +111,7 @@ test("captures the deterministic sweep release frame", async ({ page }) => {
 });
 
 test("loads and exposes the Procession and Revelation package rules", async ({ page }) => {
-  await page.goto("/?recipe=procession");
+  await page.goto("/playground?recipe=procession");
   await waitForDebugBridge(page);
   await expect(page.locator("[data-scene-ui]")).toHaveAttribute(
     "data-archetype",
@@ -126,7 +126,7 @@ test("loads and exposes the Procession and Revelation package rules", async ({ p
     (window as any).__SOULLOOM__.getSnapshot().combat.arena.radius < 5.15
   ));
 
-  await page.goto("/?recipe=revelation");
+  await page.goto("/playground?recipe=revelation");
   await waitForDebugBridge(page);
   await page.evaluate(() => {
     (window as any).__SOULLOOM__.pause();

@@ -115,7 +115,7 @@ export function mountControlRoom(root: HTMLElement, fixture: StudioRunFixture): 
         <h1>${fixture.label}</h1>
         <p class="run-input"></p>
       </div>
-      <a class="secondary-button" href="/studio">New production</a>
+      <a class="secondary-button" href="/">New production</a>
     </header>
     <section class="release-banner" aria-live="polite">
       <span class="status-icon" aria-hidden="true"></span>

@@ -11,6 +11,7 @@ import {
 import { createArenaModel } from "./visuals/createArenaModel";
 import { createBossModel } from "./visuals/createBossModel";
 import { createPlayerModel } from "./visuals/createPlayerModel";
+import { createPhaseVoicePlayer, type PhaseVoicePlayer } from "./createPhaseVoicePlayer";
 
 const MAX_PIXEL_RATIO = 2;
 const STRIKE_VISUAL_DURATION = 0.28;
@@ -461,6 +462,7 @@ function handleEvents(
   timers: EffectTimers,
   spec: BossSpec,
   recipe?: GameRecipeV0,
+  phaseVoice?: PhaseVoicePlayer,
 ): void {
   for (const event of events) {
     if (event.type === "player_strike") {
@@ -473,6 +475,7 @@ function handleEvents(
       timers.playerHit = 0.24;
       timers.cameraShake = 0.2;
     } else if (event.type === "phase_two") {
+      phaseVoice?.playPhaseTwo();
       timers.eventCallout = 1.8;
       timers.cameraShake = 0.38;
       const ruleCallout = recipe?.archetype === "procession"
@@ -486,6 +489,7 @@ function handleEvents(
     } else if (event.type === "victory" || event.type === "defeat") {
       showResult(ui, event.type, spec);
     } else if (event.type === "restart") {
+      phaseVoice?.reset();
       ui.result.classList.add("is-hidden");
       ui.eventCallout.classList.remove("is-visible", "is-phase");
       visuals.bossBodyMaterial.emissiveIntensity = 0.14;
@@ -674,6 +678,7 @@ export function createBattleScene(recipe: GameRecipeV0, container: HTMLElement):
   ui.root.dataset.archetype = recipe.archetype;
   ui.root.dataset.arenaRule = recipe.arena.rule;
   const input = createInput(container);
+  const phaseVoice = createPhaseVoicePlayer(spec.voice.url, container);
   const timers: EffectTimers = {
     slash: 0,
     bossHit: 0,
@@ -722,7 +727,15 @@ export function createBattleScene(recipe: GameRecipeV0, container: HTMLElement):
       uninstallDebugBridge = installDebugBridge({
         controller,
         spec,
-        dispatch: (events) => handleEvents(events, ui, visuals, timers, spec, recipe),
+        dispatch: (events) => handleEvents(
+          events,
+          ui,
+          visuals,
+          timers,
+          spec,
+          recipe,
+          phaseVoice,
+        ),
         getIntroVisible: () => visualElapsed <= introVisibleUntil,
         showIntro: () => {
           introVisibleUntil = visualElapsed + 2.35;
@@ -760,7 +773,7 @@ export function createBattleScene(recipe: GameRecipeV0, container: HTMLElement):
     visualElapsed += delta;
     const elapsed = visualElapsed;
     const events = controller.update(delta, input.read());
-    handleEvents(events, ui, visuals, timers, spec, recipe);
+    handleEvents(events, ui, visuals, timers, spec, recipe, phaseVoice);
 
     const { player, boss, outcome } = controller.state;
     visuals.player.position.set(player.position.x, 0, player.position.z);
@@ -818,6 +831,7 @@ export function createBattleScene(recipe: GameRecipeV0, container: HTMLElement):
     window.cancelAnimationFrame(animationFrame);
     resizeObserver.disconnect();
     input.dispose();
+    phaseVoice.dispose();
     ui.restartButton.removeEventListener("click", input.requestRestart);
     ui.root.remove();
     renderer.domElement.remove();

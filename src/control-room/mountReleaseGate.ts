@@ -13,7 +13,7 @@ export function mountReleaseGate(root: HTMLElement, runId: string): void {
       </span>
       <h1 id="gate-title">RELEASE BLOCKED</h1>
       <p>The run <code></code> has no published release in the local evidence registry. A game route cannot open until QA passes and Publisher records <code>release_published</code>.</p>
-      <div class="gate-actions"><a class="primary-button" href="/studio">START A PRODUCTION</a><a class="secondary-button" href="/control-room/fixture-encounter-repair">VIEW REPAIR PROOF</a></div>
+      <div class="gate-actions"><a class="primary-button" href="/">START A PRODUCTION</a><a class="secondary-button" href="/control-room/fixture-encounter-repair">VIEW REPAIR PROOF</a></div>
     </section>
   `;
   const code = main.querySelector("code");

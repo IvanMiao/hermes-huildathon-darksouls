@@ -1,6 +1,11 @@
 import "./style.css";
 import type { GameRecipeV0 } from "./game-recipe/types";
 
+interface ConvexPublishedRun {
+  status: "published";
+  recipe: GameRecipeV0;
+}
+
 function requireAppRoot(): HTMLElement {
   const root = document.querySelector<HTMLElement>("#app");
   if (!root) {
@@ -64,7 +69,41 @@ async function mountControlRoom(runId: string): Promise<void> {
   mountControlRoom(requireAppRoot(), fixture);
 }
 
+async function loadConvexPublishedRun(runId: string): Promise<ConvexPublishedRun | null> {
+  const convexUrl = import.meta.env.VITE_CONVEX_URL;
+  if (!convexUrl) return null;
+
+  try {
+    const [{ ConvexHttpClient }, { makeFunctionReference }, { isGameRecipeV0 }] = await Promise.all([
+      import("convex/browser"),
+      import("convex/server"),
+      import("./game-recipe/normalize"),
+    ]);
+    const client = new ConvexHttpClient(convexUrl);
+    const getRun = makeFunctionReference<"query">("studio:getRun");
+    const document = await client.query(getRun, { runId }) as {
+      status?: unknown;
+      recipe?: unknown;
+    } | null;
+    if (document?.status !== "published" || !isGameRecipeV0(document.recipe)) {
+      return null;
+    }
+    return { status: "published", recipe: document.recipe };
+  } catch (error) {
+    console.warn(`Convex run lookup failed; using local evidence: ${
+      error instanceof Error ? error.message : String(error)
+    }`);
+    return null;
+  }
+}
+
 async function mountPublishedGame(runId: string): Promise<void> {
+  const convexRun = await loadConvexPublishedRun(runId);
+  if (convexRun) {
+    await mountGame(convexRun.recipe);
+    return;
+  }
+
   const { findStudioRunFixture } = await import("./studio/fixtures");
   const fixture = findStudioRunFixture(runId);
   const wasPublished = fixture?.events.some((event) => event.type === "release_published") ?? false;
@@ -82,8 +121,13 @@ async function mountPublishedGame(runId: string): Promise<void> {
 
 async function startRoute(): Promise<void> {
   const pathname = window.location.pathname;
-  if (pathname === "/studio" || pathname === "/studio/") {
+  if (pathname === "/" || pathname === "/studio" || pathname === "/studio/") {
     await mountStudio();
+    return;
+  }
+
+  if (pathname === "/playground" || pathname === "/playground/") {
+    await mountDefaultGame();
     return;
   }
 
@@ -99,8 +143,7 @@ async function startRoute(): Promise<void> {
     return;
   }
 
-  // The existing root route remains the deterministic battle sandbox used by P2.
-  await mountDefaultGame();
+  window.location.replace("/");
 }
 
 void startRoute();

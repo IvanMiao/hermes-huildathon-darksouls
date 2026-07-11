@@ -10,11 +10,14 @@
     "test:e2e": "playwright test",
     "studio": "tsx runner/cli.ts",
     "studio:fixtures": "tsx runner/runFixtures.ts",
+    "convex:dev": "convex dev",
+    "convex:deploy": "convex deploy",
     "typecheck": "tsc --noEmit",
     "verify": "npm test && npm run typecheck && npm run build && npm run test:e2e"
   },
   "dependencies": {
     "ajv": "^8.20.0",
+    "convex": "^1.42.1",
     "three": "^0.185.1"
   },
   "devDependencies": {
