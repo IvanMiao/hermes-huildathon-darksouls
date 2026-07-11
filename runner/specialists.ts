@@ -9,6 +9,7 @@ import {
 } from "./contracts";
 
 export interface SpecialistAdapter<T> {
+  readonly agentRuntime: "local_fixture" | "hermes_specialist";
   generate(brief: ProductionBrief): Promise<T>;
   repair(
     brief: ProductionBrief,
@@ -250,6 +251,7 @@ function fallbackEncounter(): EncounterSpec {
 export function createLocalStudioAdapters(): StudioAdapters {
   return {
     creative: {
+      agentRuntime: "local_fixture",
       async generate(brief) {
         return generatedTheme(brief);
       },
@@ -259,6 +261,7 @@ export function createLocalStudioAdapters(): StudioAdapters {
       fallback: fallbackTheme,
     },
     encounter: {
+      agentRuntime: "local_fixture",
       async generate(brief) {
         return generatedEncounter(brief);
       },

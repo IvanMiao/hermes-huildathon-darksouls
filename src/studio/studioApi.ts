@@ -1,0 +1,127 @@
+export interface StartStudioRunResponse {
+  runId: string;
+  status: "published" | "release_blocked";
+  gameUrl: string | null;
+  controlRoomUrl: string;
+}
+
+type StudioJobState = "queued" | "running" | "completed" | "failed";
+
+interface StudioJobResponse {
+  requestId: string;
+  state: StudioJobState;
+  statusUrl: string;
+  result?: StartStudioRunResponse;
+  error?: string;
+}
+
+export interface StartStudioRunOptions {
+  fetcher?: typeof fetch;
+  pollIntervalMs?: number;
+  timeoutMs?: number;
+  signal?: AbortSignal;
+  onStateChange?: (state: "queued" | "running") => void;
+}
+
+const STATUS_URL_PATTERN = /^\/api\/studio\/runs\/[0-9a-f-]{36}$/;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isStartStudioRunResponse(value: unknown): value is StartStudioRunResponse {
+  if (!isRecord(value)) return false;
+  return typeof value.runId === "string"
+    && (value.status === "published" || value.status === "release_blocked")
+    && (typeof value.gameUrl === "string" || value.gameUrl === null)
+    && typeof value.controlRoomUrl === "string";
+}
+
+function isStudioJobResponse(value: unknown): value is StudioJobResponse {
+  if (!isRecord(value)) return false;
+  return typeof value.requestId === "string"
+    && ["queued", "running", "completed", "failed"].includes(String(value.state))
+    && typeof value.statusUrl === "string";
+}
+
+async function responseBody(response: Response): Promise<unknown> {
+  try {
+    return await response.json() as unknown;
+  } catch {
+    return null;
+  }
+}
+
+function errorMessage(body: unknown, fallback: string): string {
+  return isRecord(body) && typeof body.error === "string" ? body.error : fallback;
+}
+
+function wait(milliseconds: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolveWait, rejectWait) => {
+    if (signal?.aborted) {
+      rejectWait(signal.reason ?? new DOMException("Aborted", "AbortError"));
+      return;
+    }
+    const timeout = globalThis.setTimeout(resolveWait, milliseconds);
+    signal?.addEventListener("abort", () => {
+      globalThis.clearTimeout(timeout);
+      rejectWait(signal.reason ?? new DOMException("Aborted", "AbortError"));
+    }, { once: true });
+  });
+}
+
+export async function startStudioRun(
+  inputText: string,
+  options: StartStudioRunOptions = {},
+): Promise<StartStudioRunResponse> {
+  const fetcher = options.fetcher ?? fetch;
+  const pollIntervalMs = options.pollIntervalMs ?? 1_000;
+  const timeoutMs = options.timeoutMs ?? 3 * 60_000;
+  const idempotencyKey = crypto.randomUUID();
+  const startedAt = Date.now();
+  const startResponse = await fetcher("/api/studio/runs", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Idempotency-Key": idempotencyKey,
+    },
+    body: JSON.stringify({ inputText }),
+    signal: options.signal,
+  });
+  const acceptedBody = await responseBody(startResponse);
+  if (!startResponse.ok) {
+    throw new Error(errorMessage(acceptedBody, "The Hermes runner rejected this production."));
+  }
+  // Accept the original synchronous server response during rolling deployments.
+  if (isStartStudioRunResponse(acceptedBody)) return acceptedBody;
+  if (!isStudioJobResponse(acceptedBody) || !STATUS_URL_PATTERN.test(acceptedBody.statusUrl)) {
+    throw new Error("The Hermes runner returned an invalid job response.");
+  }
+
+  let job = acceptedBody;
+  while (true) {
+    if (job.state === "completed") {
+      if (!isStartStudioRunResponse(job.result)) {
+        throw new Error("The completed Hermes job has no valid production result.");
+      }
+      return job.result;
+    }
+    if (job.state === "failed") {
+      throw new Error(job.error ?? "The Hermes production failed.");
+    }
+    options.onStateChange?.(job.state);
+    if (Date.now() - startedAt >= timeoutMs) {
+      throw new Error("Hermes production timed out. The job may still be running in the Studio.");
+    }
+    await wait(pollIntervalMs, options.signal);
+    const statusResponse = await fetcher(job.statusUrl, {
+      headers: { Accept: "application/json" },
+      signal: options.signal,
+    });
+    const statusBody = await responseBody(statusResponse);
+    if (!statusResponse.ok || !isStudioJobResponse(statusBody)) {
+      throw new Error(errorMessage(statusBody, "Could not read the Hermes production status."));
+    }
+    job = statusBody;
+  }
+}

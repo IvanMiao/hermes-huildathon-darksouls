@@ -1,0 +1,8 @@
+# Local values for `wrangler pages dev dist`. Do not commit `.dev.vars`.
+STUDIO_RUNNER_ORIGIN=http://127.0.0.1:8787
+STUDIO_RUNNER_API_TOKEN=replace-with-the-same-runner-token-as-env-local
+
+# Set both values in production when the Tunnel hostname is protected by a
+# Cloudflare Access Service Auth policy. Leave both empty for local development.
+# CF_ACCESS_CLIENT_ID=your-service-token.access
+# CF_ACCESS_CLIENT_SECRET=your-service-token-secret

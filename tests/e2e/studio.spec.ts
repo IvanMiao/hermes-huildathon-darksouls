@@ -1,10 +1,22 @@
 import { expect, test } from "@playwright/test";
 
-test("creates a deterministic fixture run without a model call", async ({ page }) => {
+test("starts a live Studio run through the runner API", async ({ page }) => {
+  await page.route("**/api/studio/runs", async (route) => {
+    await route.fulfill({
+      status: 201,
+      contentType: "application/json",
+      body: JSON.stringify({
+        runId: "live-hermes-run",
+        status: "published",
+        gameUrl: "/games/live-hermes-run",
+        controlRoomUrl: "/control-room/live-hermes-run",
+      }),
+    });
+  });
   await page.goto("/");
 
   await expect(page.getByRole("heading", { name: /One internet moment in/i })).toBeVisible();
-  await expect(page.getByText("No model call will be made.")).toBeVisible();
+  await expect(page.getByText(/starts a live Manager with parallel Hermes specialists/i)).toBeVisible();
   await expect(page.getByLabel("Tweet text")).toHaveValue("");
   await expect(page.getByText("I smell fear.")).toHaveCount(0);
   await page.getByLabel("Tweet text").fill(
@@ -12,8 +24,7 @@ test("creates a deterministic fixture run without a model call", async ({ page }
   );
   await page.getByRole("button", { name: "MAKE IT PLAYABLE" }).click();
 
-  await expect(page).toHaveURL(/\/control-room\/fixture-encounter-repair\?replay=1&source=text$/);
-  await expect(page.getByText("DETERMINISTIC FIXTURE")).toBeVisible();
+  await expect(page).toHaveURL(/\/games\/live-hermes-run$/);
 });
 
 test("accepts a tweet screenshot as the source", async ({ page }) => {

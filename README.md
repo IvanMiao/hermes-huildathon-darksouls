@@ -53,6 +53,7 @@ Requires Node.js 20 or newer.
 
 ```bash
 npm install
+npm run studio:server # terminal 1: real Hermes runner on :8787
 npm run dev
 ```
 
@@ -96,12 +97,14 @@ playground with:
 ```
 
 The development-only `window.__SOULLOOM__` bridge is removed from production
-builds. The P3 orchestration core accepts specialist adapters; the bundled local
-adapters keep fixtures offline and reproducible, while a Hermes delegation
-adapter can use the same artifact boundary without touching runtime code. A
-fixture-backed Studio and Control Room can replay the release evidence locally;
-live Hermes delegation and Cloudflare delivery remain future integration
-stages. A time-boxed Convex + ElevenLabs path is scaffolded under `convex/`:
-after configuring `.env.local` and the two Convex secrets described in
-`convex/README.md`, real CLI runs generate one stored voice artifact and mirror
-their complete P3 evidence without changing the offline fallback behavior.
+builds. The P3 orchestration core accepts specialist adapters; fixtures remain
+offline and reproducible, while `npm run studio -- "tweet text"` and the browser
+Studio invoke parallel schema-constrained Hermes Creative/Encounter specialists
+through the same Manager-owned artifact boundary.
+`npm run studio:local -- "tweet text"` retains the deterministic path, while
+`npm run studio:server` exposes the live workflow through an authenticated,
+asynchronous local API. Cloudflare Pages proxies `/api/*` to its protected
+Tunnel without placing runner or Access tokens in the Vite bundle. The Control
+Room reads completed live evidence from Convex and keeps deterministic fixtures
+for offline replay. See [CLOUDFLARE_DEPLOYMENT.md](./CLOUDFLARE_DEPLOYMENT.md)
+for the production configuration and acceptance gate.

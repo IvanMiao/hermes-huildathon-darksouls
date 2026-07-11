@@ -275,13 +275,20 @@ export class HermesStudioManager {
     });
 
     let data: ArtifactDataByKind[K];
-    let source: ArtifactSource = { mode: "generated" };
+    let source: ArtifactSource = {
+      mode: "generated",
+      agentRuntime: adapter.agentRuntime,
+    };
     try {
       data = await withTimeout(adapter.generate(brief), owner, this.timeoutMs);
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
       data = adapter.fallback(brief);
-      source = { mode: "cached_fallback", fallbackReason: reason };
+      source = {
+        mode: "cached_fallback",
+        fallbackReason: reason,
+        agentRuntime: adapter.agentRuntime,
+      };
       await store.appendEvent({
         actor: owner,
         type: "fallback_used",
@@ -311,7 +318,10 @@ export class HermesStudioManager {
     feedback: readonly string[],
   ): Promise<ArtifactEnvelope<K>> {
     let data: ArtifactDataByKind[K];
-    let source: ArtifactSource = { mode: "repair" };
+    let source: ArtifactSource = {
+      mode: "repair",
+      agentRuntime: adapter.agentRuntime,
+    };
     try {
       data = await withTimeout(
         adapter.repair(brief, previous, feedback),
@@ -321,7 +331,11 @@ export class HermesStudioManager {
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
       data = adapter.fallback(brief);
-      source = { mode: "default_fallback", fallbackReason: reason };
+      source = {
+        mode: "default_fallback",
+        fallbackReason: reason,
+        agentRuntime: adapter.agentRuntime,
+      };
       await store.appendEvent({
         actor: owner,
         type: "fallback_used",

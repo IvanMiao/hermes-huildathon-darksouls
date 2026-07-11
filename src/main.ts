@@ -55,46 +55,62 @@ async function mountStudio(): Promise<void> {
 }
 
 async function mountControlRoom(runId: string): Promise<void> {
-  const [, { findStudioRunFixture }, { mountControlRoom }, { mountReleaseGate }] = await Promise.all([
+  const [, { findStudioRunFixture }, { mountControlRoom }, { mountReleaseGate }, { toLiveStudioRun }] = await Promise.all([
     import("./studio/studio.css"),
     import("./studio/fixtures"),
     import("./control-room/mountControlRoom"),
     import("./control-room/mountReleaseGate"),
+    import("./studio/remoteRun"),
   ]);
   const fixture = findStudioRunFixture(runId);
-  if (!fixture) {
+  if (fixture) {
+    mountControlRoom(requireAppRoot(), fixture);
+    return;
+  }
+  const liveRun = toLiveStudioRun(await queryConvexRun(runId));
+  if (!liveRun) {
     mountReleaseGate(requireAppRoot(), runId);
     return;
   }
-  mountControlRoom(requireAppRoot(), fixture);
+  mountControlRoom(requireAppRoot(), liveRun);
 }
 
-async function loadConvexPublishedRun(runId: string): Promise<ConvexPublishedRun | null> {
+async function queryConvexRun(runId: string): Promise<unknown> {
   const convexUrl = import.meta.env.VITE_CONVEX_URL;
   if (!convexUrl) return null;
 
   try {
-    const [{ ConvexHttpClient }, { makeFunctionReference }, { isGameRecipeV0 }] = await Promise.all([
+    const [{ ConvexHttpClient }, { makeFunctionReference }] = await Promise.all([
       import("convex/browser"),
       import("convex/server"),
-      import("./game-recipe/normalize"),
     ]);
     const client = new ConvexHttpClient(convexUrl);
     const getRun = makeFunctionReference<"query">("studio:getRun");
-    const document = await client.query(getRun, { runId }) as {
-      status?: unknown;
-      recipe?: unknown;
-    } | null;
-    if (document?.status !== "published" || !isGameRecipeV0(document.recipe)) {
-      return null;
-    }
-    return { status: "published", recipe: document.recipe };
+    return await client.query(getRun, { runId });
   } catch (error) {
     console.warn(`Convex run lookup failed; using local evidence: ${
       error instanceof Error ? error.message : String(error)
     }`);
     return null;
   }
+}
+
+async function loadConvexPublishedRun(runId: string): Promise<ConvexPublishedRun | null> {
+  const [{ isGameRecipeV0 }, document] = await Promise.all([
+    import("./game-recipe/normalize"),
+    queryConvexRun(runId),
+  ]);
+  if (
+    typeof document !== "object"
+    || document === null
+    || !("status" in document)
+    || !("recipe" in document)
+    || document.status !== "published"
+    || !isGameRecipeV0(document.recipe)
+  ) {
+    return null;
+  }
+  return { status: "published", recipe: document.recipe };
 }
 
 async function mountPublishedGame(runId: string): Promise<void> {

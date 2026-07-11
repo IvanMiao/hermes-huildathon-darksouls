@@ -33,6 +33,8 @@ describe("P3 local autonomous studio", () => {
 
     expect(result.status).toBe("published");
     expect(result.qaReport.passed).toBe(true);
+    expect(result.artifacts.find(({ kind }) => kind === "ThemeSpec")?.source)
+      .toMatchObject({ agentRuntime: "local_fixture" });
     await expect(access(join(result.runDirectory, "release.json"))).resolves.toBeUndefined();
 
     const creativeStarted = result.events.findIndex(

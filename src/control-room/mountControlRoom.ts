@@ -111,7 +111,7 @@ export function mountControlRoom(root: HTMLElement, fixture: StudioRunFixture): 
   main.innerHTML = `
     <header class="run-heading">
       <div>
-        <p class="eyebrow">CONTROL ROOM · DETERMINISTIC FIXTURE</p>
+        <p class="eyebrow">CONTROL ROOM · ${fixture.evidenceKind === "live" ? "LIVE CONVEX EVIDENCE" : "DETERMINISTIC FIXTURE"}</p>
         <h1>${fixture.label}</h1>
         <p class="run-input"></p>
       </div>
@@ -152,7 +152,9 @@ export function mountControlRoom(root: HTMLElement, fixture: StudioRunFixture): 
       ? `Tweet image uploaded · ${fixture.runId}`
       : sourceMode === "text"
         ? `Tweet text pasted · ${fixture.runId}`
-        : `Recorded fixture · ${fixture.runId}`;
+        : fixture.evidenceKind === "live"
+          ? `Live production · ${fixture.runId}`
+          : `Recorded fixture · ${fixture.runId}`;
   }
 
   const range = main.querySelector<HTMLInputElement>('input[type="range"]');

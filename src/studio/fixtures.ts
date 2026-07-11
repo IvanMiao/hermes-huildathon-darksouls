@@ -29,6 +29,7 @@ export interface QAProofCheck {
 export interface StudioRunFixture {
   runId: string;
   label: string;
+  evidenceKind?: "fixture" | "live";
   inputText: string;
   status: "published" | "release_blocked";
   recipe: GameRecipeV0;
