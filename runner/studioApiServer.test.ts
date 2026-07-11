@@ -56,6 +56,51 @@ async function waitForCompletedJob(baseUrl: string, statusUrl: string): Promise<
 }
 
 describe("studio runner HTTP API", () => {
+  it("streams job snapshots as production evidence changes", async () => {
+    let publishEvent: (() => void) | undefined;
+    const eventReady = new Promise<void>((resolve) => {
+      publishEvent = resolve;
+    });
+    const baseUrl = await startServer(async (_inputText, progress) => {
+      await eventReady;
+      progress.onEvent({
+        runId: progress.runId,
+        sequence: 1,
+        occurredAt: "2026-07-11T12:00:00.000Z",
+        actor: "Studio Manager",
+        type: "run_started",
+        status: "started",
+        summary: "Production started.",
+      });
+      return { ...publishedRun, runId: progress.runId };
+    });
+    const startResponse = await fetch(`${baseUrl}/api/studio/runs`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Idempotency-Key": "stream-request-key",
+      },
+      body: JSON.stringify({ inputText: "Stream the proof." }),
+    });
+    const accepted = await startResponse.json() as StudioJobView;
+    const abort = new AbortController();
+    const stream = await fetch(`${baseUrl}${accepted.statusUrl}/stream`, {
+      headers: { Accept: "text/event-stream" },
+      signal: abort.signal,
+    });
+    expect(stream.headers.get("content-type")).toContain("text/event-stream");
+    const reader = stream.body?.getReader();
+    if (!reader) throw new Error("Missing studio event stream.");
+    await reader.read();
+
+    publishEvent?.();
+    const update = new TextDecoder().decode((await reader.read()).value);
+    abort.abort();
+
+    expect(update).toContain("event: snapshot");
+    expect(update).toContain("run_started");
+  });
+
   it("accepts a job asynchronously and exposes its completed result", async () => {
     const produce = vi.fn(async (_inputText: string, progress: StudioProductionProgress) => {
       progress.onEvent({

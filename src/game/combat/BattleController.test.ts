@@ -121,6 +121,49 @@ describe("BattleController", () => {
     expect(controller.state.player.dodgeRemaining).toBeGreaterThan(0);
   });
 
+  it("limits the sweep to its telegraphed forward arc", () => {
+    const controller = new BattleController(DEFAULT_GAME_RECIPE);
+    controller.state.boss.position = { x: 0, z: 0 };
+    controller.state.player.position = { x: 2, z: 0 };
+    controller.state.boss.attack = {
+      type: "sweep",
+      stage: "active",
+      elapsed: 0,
+      duration: 0.24,
+      target: { x: 0, z: 2 },
+      hasHit: false,
+    };
+
+    const outsideArc = controller.update(0.016, idleInput);
+    expect(outsideArc.some(({ type }) => type === "player_hit")).toBe(false);
+
+    controller.state.player.position = { x: 0, z: 2 };
+    const insideArc = controller.update(0.016, idleInput);
+    expect(insideArc.some(({ type }) => type === "player_hit")).toBe(true);
+  });
+
+  it("emits perfect dodge feedback once when an attack crosses invulnerability", () => {
+    const controller = new BattleController(DEFAULT_GAME_RECIPE);
+    controller.state.boss.position = { x: 0, z: 0 };
+    controller.state.player.position = { x: 0, z: 2 };
+    controller.state.player.invulnerableRemaining = 0.2;
+    controller.state.boss.attack = {
+      type: "sweep",
+      stage: "active",
+      elapsed: 0,
+      duration: 0.24,
+      target: { x: 0, z: 2 },
+      hasHit: false,
+    };
+
+    const firstFrame = controller.update(0.016, idleInput);
+    const laterFrame = controller.update(0.016, idleInput);
+
+    expect(firstFrame).toContainEqual({ type: "perfect_dodge", attack: "sweep" });
+    expect(firstFrame.some(({ type }) => type === "player_hit")).toBe(false);
+    expect(laterFrame.some(({ type }) => type === "perfect_dodge")).toBe(false);
+  });
+
   it("can restart after victory", () => {
     const controller = new BattleController(DEFAULT_GAME_RECIPE);
     controller.state.player.position = { x: 0, z: -0.3 };

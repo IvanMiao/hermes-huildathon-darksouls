@@ -87,6 +87,7 @@ body {
 .phase-mark,
 .attack-callout,
 .event-callout,
+.perfect-dodge-callout,
 .controls,
 .intro-kicker {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -137,7 +138,8 @@ body {
 }
 
 .attack-callout,
-.event-callout {
+.event-callout,
+.perfect-dodge-callout {
   position: absolute;
   left: 50%;
   margin: 0;
@@ -163,10 +165,42 @@ body {
   letter-spacing: 0.08em;
 }
 
+.perfect-dodge-callout {
+  top: 58%;
+  color: #f5ead8;
+  font-size: clamp(8px, 1cqw, 13px);
+  letter-spacing: 0.28em;
+  text-shadow:
+    0 2px 14px #000,
+    0 0 24px rgb(237 225 207 / 72%);
+}
+
 .attack-callout.is-visible,
-.event-callout.is-visible {
+.event-callout.is-visible,
+.perfect-dodge-callout.is-visible {
   opacity: 1;
   transform: translate(-50%, 0);
+}
+
+.battle-ui[data-attack-feedback-stage="imminent"] .attack-callout {
+  color: #f5e8d3;
+  letter-spacing: 0.25em;
+  text-shadow:
+    0 2px 16px #000,
+    0 0 20px rgb(217 119 69 / 82%);
+}
+
+.hit-vignette {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at center, transparent 38%, rgb(118 12 18 / 32%) 72%, rgb(52 0 6 / 74%));
+  opacity: 0;
+  transition: opacity 90ms ease-out;
+}
+
+.battle-ui.is-player-hit .hit-vignette {
+  opacity: 1;
 }
 
 .event-callout.is-phase {

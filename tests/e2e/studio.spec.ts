@@ -102,15 +102,17 @@ test("replays blocked, targeted repair, and published states", async ({ page }) 
 
   await replay.fill("12");
   await expect(page.locator(".release-banner strong")).toHaveText("RELEASE BLOCKED");
-  await expect(page.locator(".qa-checks")).toContainText(
+  await expect(page.locator("[data-region='evidence-inspector']")).toContainText(
     "Procession must use closing_ring and contain an adjacent charge chain",
   );
 
   await replay.fill("14");
   await expect(page.locator(".release-banner strong")).toHaveText("TARGETED REPAIR");
-  await expect(page.locator(".repair-diff")).toContainText("charge → sweep");
-  await expect(page.locator(".repair-diff")).toContainText("charge → charge");
-  await expect(page.locator(".repair-diff")).toContainText("Encounter Designer only");
+  await expect(page.locator("[data-region='evidence-inspector']")).toContainText("EncounterSpec v2");
+  await expect(page.locator("[data-region='evidence-inspector']")).toContainText("charge");
+
+  await page.locator(".timeline-event").nth(10).click();
+  await expect(page.locator("[data-region='evidence-inspector']")).toContainText("QAReport v1");
 
   await replay.fill("19");
   await expect(page.locator(".release-banner strong")).toHaveText("SHIPPED");

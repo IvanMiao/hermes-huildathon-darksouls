@@ -16,6 +16,22 @@ import { createGeneratedBossModel } from "./visuals/createGeneratedBossModel";
 import { createGeneratedPlayerModel } from "./visuals/createGeneratedPlayerModel";
 import { createPlayerModel } from "./visuals/createPlayerModel";
 import {
+  createAttackTelegraphs,
+  updateAttackTelegraphs,
+  type AttackTelegraphVisuals,
+} from "./visuals/createAttackTelegraphs";
+import {
+  BOSS_IMPACT_DURATION,
+  createCombatImpactFeedback,
+  PERFECT_DODGE_DURATION,
+  placeBossImpact,
+  placePerfectDodge,
+  placePlayerImpact,
+  PLAYER_IMPACT_DURATION,
+  updateCombatImpactFeedback,
+  type CombatImpactFeedback,
+} from "./visuals/createCombatImpactFeedback";
+import {
   resolveBattleVisualProfile,
   type BattleVisualProfile,
 } from "./visuals/resolveBattleVisualProfile";
@@ -37,6 +53,8 @@ interface BattleUi {
   phase: HTMLElement;
   attackCallout: HTMLElement;
   eventCallout: HTMLElement;
+  perfectDodgeCallout: HTMLElement;
+  hitVignette: HTMLElement;
   intro: HTMLElement;
   result: HTMLElement;
   resultTitle: HTMLElement;
@@ -58,10 +76,8 @@ interface CombatVisuals {
   bossBodyMaterial: THREE.MeshStandardMaterial;
   playerMaterial: THREE.MeshStandardMaterial;
   slash: THREE.Mesh;
-  sweep: THREE.Mesh;
-  charge: THREE.Mesh;
-  nova: THREE.Mesh;
-  novaCore: THREE.Mesh;
+  telegraphs: AttackTelegraphVisuals;
+  impacts: CombatImpactFeedback;
   arenaBoundary: THREE.Mesh;
   emberField: THREE.Points;
   candleFlames: THREE.Group;
@@ -71,6 +87,8 @@ interface EffectTimers {
   slash: number;
   bossHit: number;
   playerHit: number;
+  perfectDodge: number;
+  hitStop: number;
   cameraShake: number;
   eventCallout: number;
 }
@@ -111,6 +129,10 @@ function createInterface(container: HTMLElement, spec: BossSpec): BattleUi {
   const attackCallout = makeElement("p", "attack-callout");
   const eventCallout = makeElement("p", "event-callout");
   eventCallout.setAttribute("aria-live", "polite");
+  const perfectDodgeCallout = makeElement("p", "perfect-dodge-callout", "PERFECT REBUTTAL");
+  perfectDodgeCallout.setAttribute("aria-live", "polite");
+  const hitVignette = makeElement("div", "hit-vignette");
+  hitVignette.setAttribute("aria-hidden", "true");
 
   const controls = makeElement(
     "p",
@@ -156,6 +178,8 @@ function createInterface(container: HTMLElement, spec: BossSpec): BattleUi {
     phase,
     attackCallout,
     eventCallout,
+    perfectDodgeCallout,
+    hitVignette,
     controls,
     bossHud,
     intro,
@@ -170,67 +194,14 @@ function createInterface(container: HTMLElement, spec: BossSpec): BattleUi {
     phase,
     attackCallout,
     eventCallout,
+    perfectDodgeCallout,
+    hitVignette,
     intro,
     result,
     resultTitle,
     resultLine,
     restartButton,
   };
-}
-
-function createTelegraphs(
-  recipe: GameRecipeV0,
-): Pick<CombatVisuals, "sweep" | "charge" | "nova" | "novaCore" | "slash"> {
-  const spec = recipe.boss;
-  const ember = spec.boss.palette[1];
-  const warningMaterial = new THREE.MeshBasicMaterial({
-    color: ember,
-    transparent: true,
-    opacity: 0.28,
-    depthWrite: false,
-    side: THREE.DoubleSide,
-  });
-
-  const sweep = new THREE.Mesh(new THREE.RingGeometry(1.72, 2.48, 96), warningMaterial.clone());
-  sweep.rotation.x = -Math.PI / 2;
-  sweep.position.y = 0.055;
-
-  const novaGeometry = recipe.archetype === "revelation"
-    ? new THREE.RingGeometry(2.55, 4.65, 96)
-    : new THREE.RingGeometry(3.25, 3.68, 96);
-  const nova = new THREE.Mesh(novaGeometry, warningMaterial.clone());
-  nova.rotation.x = -Math.PI / 2;
-  nova.position.y = 0.06;
-
-  const novaCore = new THREE.Mesh(
-    new THREE.CircleGeometry(3.65, 96),
-    warningMaterial.clone(),
-  );
-  novaCore.rotation.x = -Math.PI / 2;
-  novaCore.position.y = 0.058;
-
-  const charge = new THREE.Mesh(new THREE.PlaneGeometry(1.15, 11), warningMaterial.clone());
-  charge.rotation.x = -Math.PI / 2;
-  charge.position.y = 0.05;
-
-  const slash = new THREE.Mesh(
-    new THREE.TorusGeometry(0.72, 0.045, 8, 48, Math.PI * 1.25),
-    new THREE.MeshBasicMaterial({
-      color: "#d9e3df",
-      transparent: true,
-      opacity: 0.85,
-      depthWrite: false,
-    }),
-  );
-  slash.rotation.x = -Math.PI / 2;
-  slash.position.y = 0.65;
-
-  sweep.visible = false;
-  charge.visible = false;
-  nova.visible = false;
-  novaCore.visible = false;
-  slash.visible = false;
-  return { sweep, charge, nova, novaCore, slash };
 }
 
 function createVisuals(
@@ -248,7 +219,20 @@ function createVisuals(
   const player = profile.family === "fable"
     ? createPlayerModel()
     : createGeneratedPlayerModel(profile.player);
-  const telegraphs = createTelegraphs(recipe);
+  const telegraphs = createAttackTelegraphs(recipe);
+  const impacts = createCombatImpactFeedback(spec.boss.palette[1], spec.boss.palette[2]);
+  const slash = new THREE.Mesh(
+    new THREE.TorusGeometry(0.72, 0.045, 8, 48, Math.PI * 1.25),
+    new THREE.MeshBasicMaterial({
+      color: "#d9e3df",
+      transparent: true,
+      opacity: 0.85,
+      depthWrite: false,
+    }),
+  );
+  slash.rotation.x = -Math.PI / 2;
+  slash.position.y = 0.65;
+  slash.visible = false;
   const arenaBoundary = new THREE.Mesh(
     new THREE.RingGeometry(0.97, 1, 128),
     new THREE.MeshBasicMaterial({
@@ -267,11 +251,9 @@ function createVisuals(
     arena.group,
     boss.group,
     player.group,
-    telegraphs.sweep,
-    telegraphs.charge,
-    telegraphs.nova,
-    telegraphs.novaCore,
-    telegraphs.slash,
+    telegraphs.group,
+    impacts.group,
+    slash,
     arenaBoundary,
   );
 
@@ -288,64 +270,13 @@ function createVisuals(
     rollTrail: player.rollTrail,
     bossBodyMaterial: boss.bodyMaterial,
     playerMaterial: player.armorMaterial,
+    telegraphs,
+    impacts,
+    slash,
     arenaBoundary,
     emberField: arena.emberField,
     candleFlames: arena.candleFlames,
-    ...telegraphs,
   };
-}
-
-function setMaterialOpacity(mesh: THREE.Mesh, opacity: number): void {
-  const material = mesh.material;
-  if (material instanceof THREE.MeshBasicMaterial) {
-    material.opacity = opacity;
-  }
-}
-
-function updateAttackTelegraph(
-  visuals: CombatVisuals,
-  attack: BossAttackState | null,
-  phase: 1 | 2,
-  recipe: GameRecipeV0,
-): void {
-  visuals.sweep.visible = attack?.type === "sweep" && attack.stage !== "recovery";
-  visuals.charge.visible = attack?.type === "charge" && attack.stage !== "recovery";
-  const novaVisible = attack?.type === "nova" && attack.stage !== "recovery";
-  const revelationCore = recipe.archetype === "revelation" && phase === 2;
-  visuals.nova.visible = Boolean(novaVisible && !revelationCore);
-  visuals.novaCore.visible = Boolean(novaVisible && revelationCore);
-
-  if (!attack || attack.stage === "recovery") {
-    return;
-  }
-
-  const progress = Math.min(1, attack.elapsed / attack.duration);
-  const opacity = attack.stage === "active" ? 0.82 : 0.16 + progress * 0.36;
-  const pulse = 0.96 + Math.sin(progress * Math.PI * 7) * 0.025;
-  const bossPosition = visuals.boss.position;
-
-  if (attack.type === "sweep") {
-    visuals.sweep.position.set(bossPosition.x, 0.055, bossPosition.z);
-    visuals.sweep.scale.setScalar(pulse);
-    setMaterialOpacity(visuals.sweep, opacity);
-  } else if (attack.type === "nova") {
-    const novaVisual = revelationCore ? visuals.novaCore : visuals.nova;
-    novaVisual.position.set(bossPosition.x, 0.06, bossPosition.z);
-    novaVisual.scale.setScalar(attack.stage === "active" ? 1 : 0.25 + progress * 0.75);
-    setMaterialOpacity(novaVisual, opacity);
-  } else {
-    const dx = attack.target.x - bossPosition.x;
-    const dz = attack.target.z - bossPosition.z;
-    const distance = Math.max(0.1, Math.hypot(dx, dz));
-    visuals.charge.position.set(
-      bossPosition.x + dx / 2,
-      0.05,
-      bossPosition.z + dz / 2,
-    );
-    visuals.charge.rotation.z = Math.atan2(-dx, -dz);
-    visuals.charge.scale.set(1, Math.min(1, distance / 5.5), 1);
-    setMaterialOpacity(visuals.charge, opacity);
-  }
 }
 
 function attackProgress(attack: BossAttackState): number {
@@ -488,12 +419,30 @@ function handleEvents(
     if (event.type === "player_strike") {
       timers.slash = STRIKE_VISUAL_DURATION;
       if (event.connected) {
-        timers.bossHit = 0.14;
+        timers.bossHit = BOSS_IMPACT_DURATION;
+        timers.hitStop = Math.max(timers.hitStop, 0.072);
         timers.cameraShake = 0.1;
+        placeBossImpact(visuals.impacts, {
+          x: visuals.boss.position.x,
+          z: visuals.boss.position.z,
+        });
       }
+    } else if (event.type === "perfect_dodge") {
+      timers.perfectDodge = PERFECT_DODGE_DURATION;
+      timers.hitStop = Math.max(timers.hitStop, 0.045);
+      timers.cameraShake = Math.max(timers.cameraShake, 0.08);
+      placePerfectDodge(visuals.impacts, {
+        x: visuals.player.position.x,
+        z: visuals.player.position.z,
+      });
     } else if (event.type === "player_hit") {
-      timers.playerHit = 0.24;
+      timers.playerHit = PLAYER_IMPACT_DURATION;
+      timers.hitStop = Math.max(timers.hitStop, 0.086);
       timers.cameraShake = 0.2;
+      placePlayerImpact(visuals.impacts, {
+        x: visuals.player.position.x,
+        z: visuals.player.position.z,
+      });
     } else if (event.type === "phase_two") {
       battleMusic?.enterPhaseTwo();
       phaseVoice?.playPhaseTwo();
@@ -515,6 +464,10 @@ function handleEvents(
       battleMusic?.reset();
       ui.result.classList.add("is-hidden");
       ui.eventCallout.classList.remove("is-visible", "is-phase");
+      timers.bossHit = 0;
+      timers.playerHit = 0;
+      timers.perfectDodge = 0;
+      timers.hitStop = 0;
       visuals.bossBodyMaterial.emissiveIntensity = 0.14;
       visuals.boss.visible = true;
       visuals.player.visible = true;
@@ -533,6 +486,8 @@ function updateEffects(
   timers.slash = Math.max(0, timers.slash - delta);
   timers.bossHit = Math.max(0, timers.bossHit - delta);
   timers.playerHit = Math.max(0, timers.playerHit - delta);
+  timers.perfectDodge = Math.max(0, timers.perfectDodge - delta);
+  timers.hitStop = Math.max(0, timers.hitStop - delta);
   timers.cameraShake = Math.max(0, timers.cameraShake - delta);
   timers.eventCallout = Math.max(0, timers.eventCallout - delta);
 
@@ -552,6 +507,9 @@ function updateEffects(
     ? 1.4
     : controller.state.phase === 2 ? 0.48 : 0.14;
   visuals.playerMaterial.emissiveIntensity = timers.playerHit > 0 ? 1.15 : 0.1;
+  updateCombatImpactFeedback(visuals.impacts, timers);
+  ui.root.classList.toggle("is-player-hit", timers.playerHit > 0);
+  ui.perfectDodgeCallout.classList.toggle("is-visible", timers.perfectDodge > 0);
 
   if (timers.eventCallout === 0) {
     ui.eventCallout.classList.remove("is-visible", "is-phase");
@@ -745,6 +703,8 @@ export function createBattleScene(recipe: GameRecipeV0, container: HTMLElement):
     slash: 0,
     bossHit: 0,
     playerHit: 0,
+    perfectDodge: 0,
+    hitStop: 0,
     cameraShake: 0,
     eventCallout: 0,
   };
@@ -833,9 +793,10 @@ export function createBattleScene(recipe: GameRecipeV0, container: HTMLElement):
       return;
     }
     debugRenderRequested = false;
-    visualElapsed += delta;
+    const simulationDelta = !paused && timers.hitStop > 0 ? 0 : delta;
+    visualElapsed += simulationDelta;
     const elapsed = visualElapsed;
-    const events = controller.update(delta, input.read());
+    const events = simulationDelta > 0 ? controller.update(simulationDelta, input.read()) : [];
     handleEvents(events, ui, visuals, timers, spec, recipe, phaseVoice, battleMusic);
 
     const { player, boss, outcome } = controller.state;
@@ -859,16 +820,18 @@ export function createBattleScene(recipe: GameRecipeV0, container: HTMLElement):
         ? 3.65
         : controller.state.arena.radius,
     );
-    updateAttackTelegraph(
-      visuals,
+    const attackFeedbackStage = updateAttackTelegraphs(
+      visuals.telegraphs,
       boss.attack,
+      boss.position,
       controller.state.phase,
       recipe,
     );
+    ui.root.dataset.attackFeedbackStage = attackFeedbackStage;
     updatePlayerAnimation(visuals, controller, timers, elapsed, reducedMotion);
     updateBossAnimation(visuals, boss.attack, elapsed, controller.state.phase, reducedMotion);
     updateEnvironmentAnimation(visuals, elapsed, reducedMotion);
-    updateEffects(delta, elapsed, controller, visuals, ui, timers);
+    updateEffects(paused ? delta : clockDelta, elapsed, controller, visuals, ui, timers);
     updateHud(ui, controller);
 
     const introComplete = elapsed > introVisibleUntil;

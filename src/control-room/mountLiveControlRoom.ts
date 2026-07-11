@@ -5,11 +5,17 @@ import type {
 } from "../../runner/contracts";
 import {
   readStudioJob,
+  streamStudioJob,
   type StudioJobResponse,
 } from "../studio/studioApi";
 import { createPageShell, getShellMain } from "../studio/pageShell";
+import {
+  createEvidenceInspector,
+  deriveEvidenceInspectorModel,
+} from "./evidenceInspector";
 
-const POLL_INTERVAL_MS = 1_000;
+const POLL_INTERVAL_MS = 500;
+const DENSE_EVENT_REVEAL_MS = 140;
 const GRAPH_ACTORS: readonly StudioActor[] = [
   "Studio Manager",
   "Creative Director",
@@ -55,7 +61,11 @@ function createGraph(events: readonly StudioEvent[]): HTMLElement {
   return graph;
 }
 
-function createTimeline(events: readonly StudioEvent[]): HTMLElement {
+function createTimeline(
+  events: readonly StudioEvent[],
+  selectedSequence: number,
+  onSelect: (sequence: number) => void,
+): HTMLElement {
   if (events.length === 0) {
     const waiting = document.createElement("div");
     waiting.className = "live-waiting-state";
@@ -64,10 +74,18 @@ function createTimeline(events: readonly StudioEvent[]): HTMLElement {
   }
   const list = document.createElement("ol");
   list.className = "artifact-timeline live-artifact-timeline";
-  for (const [index, studioEvent] of events.entries()) {
+  for (const studioEvent of events) {
     const item = document.createElement("li");
     item.className = `timeline-event is-${studioEvent.status}`;
-    if (index === events.length - 1) item.setAttribute("aria-current", "step");
+    if (studioEvent.sequence === selectedSequence) item.setAttribute("aria-current", "step");
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "timeline-event-button";
+    button.setAttribute(
+      "aria-label",
+      `Inspect step ${studioEvent.sequence}: ${studioEvent.summary}`,
+    );
+    button.addEventListener("click", () => onSelect(studioEvent.sequence));
     const sequence = document.createElement("span");
     sequence.className = "event-sequence";
     sequence.textContent = String(studioEvent.sequence).padStart(2, "0");
@@ -82,7 +100,8 @@ function createTimeline(events: readonly StudioEvent[]): HTMLElement {
     const summary = document.createElement("p");
     summary.textContent = studioEvent.summary;
     copy.append(header, summary);
-    item.append(sequence, copy);
+    button.append(sequence, copy);
+    item.append(button);
     list.append(item);
   }
   return list;
@@ -183,7 +202,7 @@ export function mountLiveControlRoom(root: HTMLElement, runId: string): void {
       </div>
       <aside class="control-secondary" aria-label="Live production evidence">
         <section class="panel metrics-panel" aria-labelledby="live-metrics-title"><div class="panel-heading"><p class="eyebrow">RUN TELEMETRY</p><h2 id="live-metrics-title">Production pulse</h2></div><dl data-region="live-metrics"></dl></section>
-        <section class="panel qa-panel" aria-labelledby="live-next-title"><div class="panel-heading"><p class="eyebrow">RELEASE GATE</p><h2 id="live-next-title">What happens next</h2></div><div data-region="live-next" class="live-next-step"></div></section>
+        <section class="panel inspector-panel" aria-labelledby="live-inspector-title"><div class="panel-heading"><p class="eyebrow">SELECTED STEP</p><h2 id="live-inspector-title">Evidence inspector</h2></div><div data-region="evidence-inspector"></div></section>
       </aside>
     </div>
     <section class="panel artifacts-panel" aria-labelledby="live-artifacts-title"><div class="panel-heading"><p class="eyebrow">DURABLE HANDOFFS</p><h2 id="live-artifacts-title">Artifacts as they land</h2></div><div data-region="live-artifacts"></div></section>
@@ -202,10 +221,15 @@ export function mountLiveControlRoom(root: HTMLElement, runId: string): void {
   const graph = requireElement(main.querySelector<HTMLElement>('[data-region="live-graph"]'), "run graph");
   const timeline = requireElement(main.querySelector<HTMLElement>('[data-region="live-timeline"]'), "timeline");
   const metrics = requireElement(main.querySelector<HTMLElement>('[data-region="live-metrics"]'), "metrics");
-  const next = requireElement(main.querySelector<HTMLElement>('[data-region="live-next"]'), "next step");
+  const inspector = requireElement(main.querySelector<HTMLElement>('[data-region="evidence-inspector"]'), "evidence inspector");
   const artifacts = requireElement(main.querySelector<HTMLElement>('[data-region="live-artifacts"]'), "artifacts");
 
   let stopped = false;
+  let selectedSequence: number | null = null;
+  let latestJob: StudioJobResponse | undefined;
+  let presentedEventCount = 0;
+  let revealTimer: number | undefined;
+  let stopStream: (() => void) | undefined;
 
   function render(job: StudioJobResponse): void {
     runInput.textContent = `“${job.inputText}” · ${job.runId}`;
@@ -248,7 +272,17 @@ export function mountLiveControlRoom(root: HTMLElement, runId: string): void {
     }
 
     graph.replaceChildren(createGraph(job.events));
-    timeline.replaceChildren(createTimeline(job.events));
+    const selectedEvent = selectedSequence === null
+      ? job.events.at(-1)
+      : job.events.find((event) => event.sequence === selectedSequence) ?? job.events.at(-1);
+    timeline.replaceChildren(createTimeline(
+      job.events,
+      selectedEvent?.sequence ?? 0,
+      (nextSequence) => {
+        selectedSequence = nextSequence;
+        render(job);
+      },
+    ));
     artifacts.replaceChildren(createArtifacts(job.artifacts));
 
     const metricRows: ReadonlyArray<readonly [string, string]> = [
@@ -266,51 +300,111 @@ export function mountLiveControlRoom(root: HTMLElement, runId: string): void {
     });
     metrics.replaceChildren(...metricElements);
 
-    const nextHeading = document.createElement("strong");
-    const nextCopy = document.createElement("p");
-    if (job.state === "completed") {
-      nextHeading.textContent = job.result?.qaPassed ? "Release decision recorded" : "Repair evidence recorded";
-      nextCopy.textContent = job.result?.qaPassed
-        ? "The game will not open automatically. Use the release button above when ready."
-        : "No game route is exposed until a future run passes deterministic QA.";
+    if (selectedEvent) {
+      inspector.replaceChildren(createEvidenceInspector(
+        deriveEvidenceInspectorModel(selectedEvent, job.artifacts),
+        {
+          pinned: selectedSequence !== null,
+          onResumeLive: () => {
+            selectedSequence = null;
+            render(job);
+          },
+        },
+      ));
     } else {
-      nextHeading.textContent = "Publication remains locked";
-      nextCopy.textContent = "Release QA checks schema legality, combat reachability, defeat, restart, and the voice trigger before publishing.";
+      const empty = document.createElement("p");
+      empty.className = "empty-state";
+      empty.textContent = "Evidence will follow the latest durable timeline step.";
+      inspector.replaceChildren(empty);
     }
-    next.replaceChildren(nextHeading, nextCopy);
+  }
+
+  function presentationSnapshot(job: StudioJobResponse): StudioJobResponse {
+    const events = job.events.slice(0, presentedEventCount);
+    const visibleArtifacts = new Set(events.flatMap((event) => event.artifact
+      ? [`${event.artifact.kind}:v${event.artifact.version}`]
+      : []));
+    const caughtUp = presentedEventCount >= job.events.length;
+    return {
+      ...job,
+      state: caughtUp ? job.state : "running",
+      events,
+      artifacts: job.artifacts.filter((artifact) => (
+        visibleArtifacts.has(`${artifact.kind}:v${artifact.version}`)
+      )),
+      ...(!caughtUp ? { result: undefined, error: undefined } : {}),
+    };
+  }
+
+  function scheduleReveal(): void {
+    if (stopped || !latestJob || revealTimer !== undefined) return;
+    if (presentedEventCount >= latestJob.events.length) {
+      render(presentationSnapshot(latestJob));
+      return;
+    }
+    revealTimer = window.setTimeout(() => {
+      revealTimer = undefined;
+      presentedEventCount += 1;
+      if (latestJob) render(presentationSnapshot(latestJob));
+      scheduleReveal();
+    }, DENSE_EVENT_REVEAL_MS);
+  }
+
+  function acceptSnapshot(job: StudioJobResponse): void {
+    latestJob = job;
+    if (job.events.length === 0) render(job);
+    scheduleReveal();
+  }
+
+  function showDisconnected(error: unknown): void {
+    banner.className = "release-banner live-release-banner is-release_blocked";
+    bannerTitle.textContent = "CONTROL ROOM DISCONNECTED";
+    bannerDetail.textContent = error instanceof Error
+      ? error.message
+      : "The live production trace is unavailable.";
+    connectionLabel.textContent = "Connection lost";
+    const retry = document.createElement("button");
+    retry.type = "button";
+    retry.className = "secondary-button live-retry-button";
+    retry.textContent = "RETRY CONNECTION";
+    retry.addEventListener("click", () => {
+      retry.remove();
+      connectionLabel.textContent = "Reconnecting…";
+      startConnection();
+    });
+    inspector.replaceChildren(retry);
   }
 
   async function poll(): Promise<void> {
     try {
       const job = await readStudioJob(`/api/studio/runs/${runId}`);
       if (stopped) return;
-      render(job);
+      acceptSnapshot(job);
       if (job.state === "queued" || job.state === "running") {
         window.setTimeout(() => void poll(), POLL_INTERVAL_MS);
       }
     } catch (error) {
       if (stopped) return;
-      banner.className = "release-banner live-release-banner is-release_blocked";
-      bannerTitle.textContent = "CONTROL ROOM DISCONNECTED";
-      bannerDetail.textContent = error instanceof Error
-        ? error.message
-        : "The live production trace is unavailable.";
-      connectionLabel.textContent = "Connection lost";
-      const retry = document.createElement("button");
-      retry.type = "button";
-      retry.className = "secondary-button live-retry-button";
-      retry.textContent = "RETRY CONNECTION";
-      retry.addEventListener("click", () => {
-        retry.remove();
-        connectionLabel.textContent = "Reconnecting…";
-        void poll();
+      showDisconnected(error);
+    }
+  }
+
+  function startConnection(): void {
+    stopStream?.();
+    try {
+      stopStream = streamStudioJob(`/api/studio/runs/${runId}`, {
+        onSnapshot: acceptSnapshot,
+        onError: () => void poll(),
       });
-      next.replaceChildren(retry);
+    } catch {
+      void poll();
     }
   }
 
   window.addEventListener("pagehide", () => {
     stopped = true;
+    stopStream?.();
+    if (revealTimer !== undefined) window.clearTimeout(revealTimer);
   }, { once: true });
-  void poll();
+  startConnection();
 }

@@ -11,6 +11,7 @@ export const DEBUG_SCENARIOS = [
   "charge",
   "nova",
   "phase_two",
+  "perfect_dodge",
   "defeat",
   "victory",
   "restart",
@@ -123,6 +124,8 @@ export function installDebugBridge(adapter: DebugRuntimeAdapter): () => void {
         adapter.showIntro();
       } else if (scenario === "phase_two") {
         triggerPhaseTwo(adapter);
+      } else if (scenario === "perfect_dodge") {
+        adapter.dispatch([{ type: "perfect_dodge", attack: "sweep" }]);
       } else if (scenario === "defeat" || scenario === "victory") {
         triggerOutcome(adapter, scenario);
       } else if (scenario === "restart") {

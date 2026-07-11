@@ -9,10 +9,11 @@ import {
   type ProductionBrief,
   type QAReport,
   type SpecialistOwner,
+  type StudioEvent,
   type StudioRunResult,
   type ThemeSpec,
 } from "./contracts";
-import { evaluateReleaseCandidate } from "./qa";
+import { evaluateReleaseCandidateWithStages } from "./qa";
 import { RunStore } from "./runStore";
 import type { RunStoreObserver } from "./runStore";
 import {
@@ -385,17 +386,39 @@ export class HermesStudioManager {
       status: "started",
       summary: regression ? "Regression QA started." : "Release QA started.",
     });
-    const report = evaluateReleaseCandidate(
+    const stageEvents: Promise<StudioEvent>[] = [];
+    const execution = evaluateReleaseCandidateWithStages(
       recipe,
       encounter,
       brief.seed,
       regression,
+      {
+        onStageStarted: (stage) => {
+          stageEvents.push(store.appendEvent({
+            actor: "Release QA",
+            type: "qa_stage_started",
+            status: "started",
+            summary: `${stage.label} started.`,
+            qaStage: stage,
+          }));
+        },
+        onStageCompleted: (stage) => {
+          stageEvents.push(store.appendEvent({
+            actor: "Release QA",
+            type: "qa_stage_completed",
+            status: stage.passed ? "passed" : "failed",
+            summary: `${stage.label} ${stage.passed ? "passed" : "failed"} in ${stage.durationMs.toFixed(2)}ms.`,
+            qaStage: stage,
+          }));
+        },
+      },
     );
+    await Promise.all(stageEvents);
     return store.writeArtifact({
       kind: "QAReport",
       actor: "Release QA",
       source: { mode: "generated" },
-      data: report,
+      data: execution.report,
     });
   }
 }

@@ -52,4 +52,25 @@ describe("Cloudflare runner proxy", () => {
     );
     expect(disallowed.status).toBe(404);
   });
+
+  it("passes the live event stream through without the JSON timeout contract", async () => {
+    const fetcher = vi.fn(async (
+      _input: RequestInfo | URL,
+      _init?: RequestInit,
+    ) => new Response("event: snapshot\ndata: {}\n\n", {
+      headers: { "Content-Type": "text/event-stream" },
+    }));
+    const response = await proxyRunnerRequest(
+      new Request(
+        "https://soulloom.pages.dev/api/studio/runs/12345678-1234-1234-1234-123456789abc/stream",
+        { headers: { Accept: "text/event-stream" } },
+      ),
+      environment,
+      fetcher,
+    );
+
+    expect(response.headers.get("content-type")).toContain("text/event-stream");
+    const [, init] = fetcher.mock.calls[0] ?? [];
+    expect(new Headers(init?.headers).get("accept")).toBe("text/event-stream");
+  });
 });

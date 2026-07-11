@@ -84,6 +84,49 @@ describe("P3 local autonomous studio", () => {
     expect(observedEvents.at(-1)).toBe("release_published");
   });
 
+  it("reports each deterministic QA stage before recording the QA artifact", async () => {
+    const runsRoot = await createRunsRoot();
+    const result = await new HermesStudioManager({ runsRoot }).start(
+      "I smell fear.",
+      { runId: "qa-stage-evidence" },
+    );
+
+    const qaStarted = result.events.findIndex(({ actor, type }) => (
+      actor === "Release QA" && type === "task_started"
+    ));
+    const qaArtifact = result.events.findIndex(({ artifact }) => (
+      artifact?.kind === "QAReport"
+    ));
+    const stageEvents = result.events.filter(({ type }) => (
+      type === "qa_stage_started" || type === "qa_stage_completed"
+    ));
+
+    expect(stageEvents.map(({ qaStage }) => qaStage?.id)).toEqual([
+      "encounter_contract",
+      "encounter_contract",
+      "recipe_contract",
+      "recipe_contract",
+      "combat_autoplay",
+      "combat_autoplay",
+      "defeat_restart",
+      "defeat_restart",
+      "package_behavior",
+      "package_behavior",
+    ]);
+    expect(stageEvents.filter(({ type }) => type === "qa_stage_completed"))
+      .toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          status: "passed",
+          qaStage: expect.objectContaining({
+            durationMs: expect.any(Number),
+            checkIds: expect.any(Array),
+          }),
+        }),
+      ]));
+    expect(result.events.indexOf(stageEvents[0]!)).toBeGreaterThan(qaStarted);
+    expect(result.events.indexOf(stageEvents.at(-1)!)).toBeLessThan(qaArtifact);
+  });
+
   it("rejects an invalid Procession, retries only Encounter, then passes regression", async () => {
     const runsRoot = await createRunsRoot();
     const result = await new HermesStudioManager({ runsRoot }).start(

@@ -49,6 +49,7 @@ export interface StudioJobView {
 interface StudioJob extends StudioJobView {
   idempotencyKey: string;
   expiresAt: number;
+  subscribers: Set<ServerResponse>;
 }
 
 export interface StudioApiServerOptions {
@@ -153,6 +154,12 @@ function publicJob(job: StudioJob): StudioJobView {
   };
 }
 
+function writeSnapshot(response: ServerResponse, job: StudioJob): void {
+  if (!response.writableEnded && !response.destroyed) {
+    response.write(`event: snapshot\ndata: ${JSON.stringify(publicJob(job))}\n\n`);
+  }
+}
+
 export function createStudioApiServer(options: StudioApiServerOptions): StudioApiServer {
   const now = options.now ?? Date.now;
   const createRequestId = options.createRequestId ?? (() => crypto.randomUUID());
@@ -183,6 +190,9 @@ export function createStudioApiServer(options: StudioApiServerOptions): StudioAp
       updatedAt: new Date(now()).toISOString(),
       expiresAt: now() + JOB_RETENTION_MS,
     });
+    for (const subscriber of job.subscribers) {
+      writeSnapshot(subscriber, job);
+    }
   }
 
   async function produce(job: StudioJob, inputText: string): Promise<void> {
@@ -227,6 +237,32 @@ export function createStudioApiServer(options: StudioApiServerOptions): StudioAp
     if (options.apiToken && !tokenMatches(bearerToken(request), options.apiToken)) {
       sendJson(response, 401, { error: "Unauthorized." }, {
         "WWW-Authenticate": "Bearer",
+      });
+      return;
+    }
+
+    const streamMatch = url.pathname.match(
+      /^\/api\/studio\/runs\/([0-9a-f-]{36})\/stream$/,
+    );
+    if (request.method === "GET" && streamMatch?.[1] && JOB_ID_PATTERN.test(streamMatch[1])) {
+      pruneJobs();
+      const job = jobs.get(streamMatch[1]);
+      if (!job) {
+        sendJson(response, 404, { error: "Studio job not found." });
+        return;
+      }
+      response.writeHead(200, {
+        "Content-Type": "text/event-stream; charset=utf-8",
+        "Cache-Control": "no-store, no-transform",
+        Connection: "keep-alive",
+        "X-Accel-Buffering": "no",
+        "X-Content-Type-Options": "nosniff",
+      });
+      response.flushHeaders();
+      job.subscribers.add(response);
+      writeSnapshot(response, job);
+      request.once("close", () => {
+        job.subscribers.delete(response);
       });
       return;
     }
@@ -293,6 +329,7 @@ export function createStudioApiServer(options: StudioApiServerOptions): StudioAp
         events: [],
         artifacts: [],
         expiresAt: now() + JOB_RETENTION_MS,
+        subscribers: new Set(),
       };
       jobs.set(requestId, job);
       requestsByIdempotencyKey.set(idempotencyKey, requestId);
@@ -309,6 +346,10 @@ export function createStudioApiServer(options: StudioApiServerOptions): StudioAp
   return {
     server,
     close: () => new Promise((resolveClose, rejectClose) => {
+      for (const job of jobs.values()) {
+        for (const subscriber of job.subscribers) subscriber.end();
+        job.subscribers.clear();
+      }
       server.close((error) => {
         if (error) rejectClose(error);
         else resolveClose();

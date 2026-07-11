@@ -8,6 +8,8 @@ import {
   type ArtifactSource,
   type AnyArtifactEnvelope,
   type PublishedRelease,
+  type QAStageId,
+  type StudioQACheck,
   type StudioActor,
   type StudioEvent,
 } from "./contracts";
@@ -22,6 +24,13 @@ interface EventInput {
   summary: string;
   artifact?: StudioEvent["artifact"];
   owner?: StudioEvent["owner"];
+  qaStage?: {
+    id: QAStageId;
+    label: string;
+    checkIds: StudioQACheck["id"][];
+    passed?: boolean;
+    durationMs?: number;
+  };
 }
 
 interface WriteArtifactInput<K extends ArtifactKind> {
@@ -181,6 +190,11 @@ export class RunStore {
   }
 
   async readArtifacts(): Promise<AnyArtifactEnvelope[]> {
+    const eventOrder = new Map(
+      (await this.readEvents()).flatMap((event) => event.artifact
+        ? [[`${event.artifact.kind}:v${event.artifact.version}`, event.sequence] as const]
+        : []),
+    );
     const kinds = await readdir(this.artifactsDirectory, { withFileTypes: true });
     const artifacts = await Promise.all(
       kinds
@@ -200,6 +214,12 @@ export class RunStore {
 
     return artifacts
       .flat()
-      .sort((left, right) => left.createdAt.localeCompare(right.createdAt));
+      .sort((left, right) => {
+        const leftSequence = eventOrder.get(`${left.kind}:v${left.version}`)
+          ?? Number.MAX_SAFE_INTEGER;
+        const rightSequence = eventOrder.get(`${right.kind}:v${right.version}`)
+          ?? Number.MAX_SAFE_INTEGER;
+        return leftSequence - rightSequence || left.id.localeCompare(right.id);
+      });
   }
 }

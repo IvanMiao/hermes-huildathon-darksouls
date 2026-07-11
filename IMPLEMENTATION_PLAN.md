@@ -133,9 +133,18 @@ The public root route also mounts Studio, with `/studio` retained as a
 compatibility alias. The deterministic P2 battle sandbox lives at `/playground`,
 while published encounters remain behind the `/games/:runId` release gate.
 Live text submissions now enter `/control-room/:runId?job=1` immediately. That
-view polls the authenticated runner job, renders durable events and artifacts as
-Hermes produces them, and never auto-opens the game. A passed, mirrored release
-unlocks `OPEN BOSS FIGHT` as the sole completion CTA.
+view consumes a same-origin authenticated SSE snapshot stream, with bounded
+polling only as a rolling-deployment fallback. Dense event bursts are presented
+in timestamp-preserving sequence so QA remains readable without adding fake
+runner delays. Timeline selection drives a step-level Evidence Inspector; live
+mode follows the newest event until a viewer pins an earlier step. A passed,
+mirrored release unlocks `OPEN BOSS FIGHT` as the sole completion CTA.
+
+Deterministic QA now emits explicit encounter-contract, recipe-contract,
+combat-autoplay, defeat/restart, and package-behavior stage events with measured
+durations before the immutable `QAReport` is written. Browser smoke remains the
+separate P2 Playwright gate; it is not mislabelled as part of the in-process P3
+simulation.
 
 ## P5 — Event-bound ElevenLabs voice
 
@@ -165,8 +174,10 @@ Order:
 
 Implemented in code: the CLI and HTTP runner mirror complete production results
 into `studioRuns`; `/games/:runId` prefers the published Convex recipe and the
-Control Room can replay live mirrored evidence. The runner API is asynchronous,
-idempotent, bearer-protected, and single-concurrency. A same-origin Pages
+Control Room can replay durable mirrored evidence. Active jobs stream ephemeral
+progress through the protected runner route, then Convex becomes the durable
+source after completion. The runner API is asynchronous, idempotent,
+bearer-protected, and single-concurrency. A same-origin Pages
 Function holds the runner and Cloudflare Access secrets and proxies only the
 allowlisted `/api/*` surface through the Tunnel. Production dashboard bindings,
 the fixed Tunnel hostname, and the three-history offline acceptance gate remain

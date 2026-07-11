@@ -192,3 +192,44 @@ export async function readStudioJob(
   }
   return statusBody;
 }
+
+export interface StudioJobStreamOptions {
+  onSnapshot: (job: StudioJobResponse) => void;
+  onError: () => void;
+}
+
+/** Subscribes to same-origin runner snapshots without exposing runner credentials. */
+export function streamStudioJob(
+  statusUrl: string,
+  options: StudioJobStreamOptions,
+): () => void {
+  if (!STATUS_URL_PATTERN.test(statusUrl)) {
+    throw new Error("The Hermes runner returned an invalid status URL.");
+  }
+  const source = new EventSource(`${statusUrl}/stream`);
+  let closed = false;
+  source.addEventListener("snapshot", (event) => {
+    let value: unknown;
+    try {
+      value = JSON.parse((event as MessageEvent<string>).data) as unknown;
+    } catch {
+      return;
+    }
+    if (!isStudioJobResponse(value)) return;
+    options.onSnapshot(value);
+    if (value.state === "completed" || value.state === "failed") {
+      closed = true;
+      source.close();
+    }
+  });
+  source.addEventListener("error", () => {
+    if (closed) return;
+    closed = true;
+    source.close();
+    options.onError();
+  });
+  return () => {
+    closed = true;
+    source.close();
+  };
+}

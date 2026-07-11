@@ -24,6 +24,8 @@ const EVENT_TYPES = new Set<StudioEvent["type"]>([
   "task_completed",
   "artifact_written",
   "fallback_used",
+  "qa_stage_started",
+  "qa_stage_completed",
   "qa_blocked",
   "retry_routed",
   "regression_started",
@@ -35,6 +37,13 @@ const EVENT_STATUSES = new Set<StudioEvent["status"]>([
   "passed",
   "failed",
   "info",
+]);
+const QA_STAGE_IDS = new Set([
+  "encounter_contract",
+  "recipe_contract",
+  "combat_autoplay",
+  "defeat_restart",
+  "package_behavior",
 ]);
 const ARTIFACT_KINDS = new Set<StudioArtifactFixture["kind"]>([
   "ProductionBrief",
@@ -56,13 +65,21 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isStudioEvent(value: unknown): value is StudioEvent {
   if (!isRecord(value)) return false;
-  return typeof value.sequence === "number"
+  const validEvent = typeof value.sequence === "number"
     && typeof value.runId === "string"
     && typeof value.occurredAt === "string"
     && ACTORS.has(value.actor as StudioActor)
     && EVENT_TYPES.has(value.type as StudioEvent["type"])
     && EVENT_STATUSES.has(value.status as StudioEvent["status"])
     && typeof value.summary === "string";
+  if (!validEvent || value.qaStage === undefined) return validEvent;
+  return isRecord(value.qaStage)
+    && QA_STAGE_IDS.has(String(value.qaStage.id))
+    && typeof value.qaStage.label === "string"
+    && Array.isArray(value.qaStage.checkIds)
+    && value.qaStage.checkIds.every((id) => typeof id === "string")
+    && (value.qaStage.passed === undefined || typeof value.qaStage.passed === "boolean")
+    && (value.qaStage.durationMs === undefined || typeof value.qaStage.durationMs === "number");
 }
 
 function artifactSummary(kind: string, version: number, data: unknown): string {

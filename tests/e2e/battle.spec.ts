@@ -80,7 +80,14 @@ test("QA can inspect every release-critical state", async ({ page }) => {
       (window as any).__SOULLOOM__.getSnapshot().combat.boss.attack?.type
     ));
     expect(attackType).toBe(scenario);
+    await expect(page.locator("[data-scene-ui]")).toHaveAttribute(
+      "data-attack-feedback-stage",
+      "warning",
+    );
   }
+
+  await trigger(page, "perfect_dodge");
+  await expect(page.locator(".perfect-dodge-callout")).toBeVisible();
 
   await trigger(page, "phase_two");
   await expect(page.locator(".phase-mark")).toHaveText("II");
@@ -93,6 +100,28 @@ test("QA can inspect every release-critical state", async ({ page }) => {
 
   await trigger(page, "victory");
   await expect(page.locator(".result-title")).toHaveText("THE ORACLE FALLS SILENT");
+});
+
+test("renders warning, imminent, and release feedback for an attack", async ({ page }) => {
+  await page.evaluate(() => {
+    (window as any).__SOULLOOM__.pause();
+    (window as any).__SOULLOOM__.dismissIntro();
+    (window as any).__SOULLOOM__.trigger("sweep");
+  });
+  const sceneUi = page.locator("[data-scene-ui]");
+  await expect(sceneUi).toHaveAttribute("data-attack-feedback-stage", "warning");
+
+  await page.evaluate(() => (window as any).__SOULLOOM__.step(500));
+  await page.waitForFunction(() => (
+    (window as any).__SOULLOOM__.getSnapshot().combat.boss.attack?.elapsed >= 0.48
+  ));
+  await expect(sceneUi).toHaveAttribute("data-attack-feedback-stage", "imminent");
+
+  await page.evaluate(() => (window as any).__SOULLOOM__.step(250));
+  await page.waitForFunction(() => (
+    (window as any).__SOULLOOM__.getSnapshot().combat.boss.attack?.stage === "active"
+  ));
+  await expect(sceneUi).toHaveAttribute("data-attack-feedback-stage", "release");
 });
 
 test("captures the deterministic sweep release frame", async ({ page }) => {

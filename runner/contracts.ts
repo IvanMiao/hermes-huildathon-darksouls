@@ -25,6 +25,12 @@ export const ARTIFACT_KINDS = [
 export type ArtifactKind = (typeof ARTIFACT_KINDS)[number];
 export type SpecialistOwner = "Creative Director" | "Encounter Designer";
 export type QAOwner = ReleaseGateOwner | "Creative Director";
+export type QAStageId =
+  | "encounter_contract"
+  | "recipe_contract"
+  | "combat_autoplay"
+  | "defeat_restart"
+  | "package_behavior";
 export type StudioQACheck = Omit<ReleaseGateCheck, "artifact" | "owner"> & {
   artifact: ReleaseGateCheck["artifact"] | "ThemeSpec";
   owner: QAOwner;
@@ -125,6 +131,8 @@ export const STUDIO_EVENT_TYPES = [
   "task_completed",
   "artifact_written",
   "fallback_used",
+  "qa_stage_started",
+  "qa_stage_completed",
   "qa_blocked",
   "retry_routed",
   "regression_started",
@@ -145,6 +153,13 @@ export interface StudioEvent {
     version: number;
   };
   owner?: QAOwner;
+  qaStage?: {
+    id: QAStageId;
+    label: string;
+    checkIds: StudioQACheck["id"][];
+    passed?: boolean;
+    durationMs?: number;
+  };
 }
 
 export interface PublishedRelease {
