@@ -63,14 +63,41 @@ complete deterministic release gate with:
 npm run verify
 ```
 
-That one command validates the schema, runs the seeded headless combat
+That one command validates the schemas, runs the recipe-driven headless combat
 simulation, type-checks and builds the runtime, then runs Playwright page-load,
 keyboard, console-error, QA-state, and screenshot checks against local Chrome.
 The deployable static output is written to `dist/`.
 
-The current repository implements the constrained `BossSpec` contract and the
-playable Three.js combat runtime plus its deterministic P2 release gate. The
-development-only `window.__SOULLOOM__` bridge can pause, step, inspect, and force
-intro, all three telegraphs, phase two, defeat, victory, and restart; it is
-removed from production builds. The autonomous studio, Convex evidence layer,
-audio pipeline, and Cloudflare delivery are the next delivery stages.
+Run the local P3 studio loop with any source text:
+
+```bash
+npm run studio -- "I smell fear."
+```
+
+The Manager writes append-only events and immutable artifact versions under
+`.soulloom/runs/<runId>/`. To materialize both the direct-pass fixture and the
+recorded QA-blocked → Encounter repair → regression-pass fixture, run:
+
+```bash
+npm run studio:fixtures
+```
+
+The current repository implements the constrained `BossSpec`, playable Three.js
+runtime, deterministic P2 release gate, the P3 local autonomous studio loop, and
+the `GameRecipeV0` encounter grammar. The runtime supports three verified
+packages: Duel, Procession (closing arena + charge chain), and Revelation
+(phase-two nova safety inversion). Try them locally with:
+
+```text
+/?recipe=duel
+/?recipe=procession
+/?recipe=revelation
+```
+
+The development-only `window.__SOULLOOM__` bridge is removed from production
+builds. The P3 orchestration core accepts specialist adapters; the bundled local
+adapters keep fixtures offline and reproducible, while a Hermes delegation
+adapter can use the same artifact boundary without touching runtime code. A
+fixture-backed Studio and Control Room can replay the release evidence locally;
+live Hermes delegation, Convex evidence, audio, and Cloudflare delivery remain
+the next integration stages.

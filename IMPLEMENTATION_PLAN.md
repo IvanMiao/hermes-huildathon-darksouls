@@ -63,12 +63,12 @@ Tasks:
 
 Exit gate: a failing combat parameter blocks release and identifies an owning artifact/role.
 
-Implemented with a seeded fixed-step simulator, explicit artifact/owner failure
+Implemented with a recipe-driven fixed-step simulator, explicit artifact/owner failure
 reports, a development-only `window.__SOULLOOM__` QA bridge, and Playwright
 keyboard/state/console/screenshot coverage. Run the full gate with
 `npm run verify`.
 
-## P3 — Local autonomous studio loop
+## P3 — Local autonomous studio loop (implemented)
 
 **Files:** `runner/`, artifact schemas, run fixtures
 
@@ -76,7 +76,7 @@ keyboard/state/console/screenshot coverage. Run the full gate with
 
 Tasks:
 
-1. Versioned `ProductionBrief`, `ThemeSpec`, `CombatSpec` and `QAReport` schemas.
+1. Versioned `ProductionBrief`, `ThemeSpec`, `EncounterSpec` and `QAReport` schemas.
 2. Run directory with append-only events and artifact versions.
 3. Manager routing: Creative + Encounter → merge → QA → targeted retry → regression.
 4. Hard timeout and explicit cached/default fallback labels.
@@ -85,7 +85,16 @@ Tasks:
 
 Exit gate: no agent edits Three.js runtime files, and an unpassed run cannot publish.
 
-## P4 — Minimal Studio and Control Room UI
+Implemented with a provider-neutral `HermesStudioManager`, deterministic local
+Creative/Encounter adapters, versioned JSON Schema contracts, append-only JSONL
+events, immutable artifact versions, an 8-second specialist timeout, visibly
+labelled cached/default fallbacks, and a single targeted repair pass followed by
+regression QA. The fixtures now publish `GameRecipeV0`: one passes directly and
+one invalid Procession omits its required charge chain, is rejected, and repairs
+only Encounter before regression. Use `npm run studio:fixtures`
+to materialize complete auditable runs under `.soulloom/runs/`.
+
+## P4 — Minimal Studio and Control Room UI (implemented)
 
 **Files:** `src/studio/*`, `src/control-room/*`
 
@@ -93,7 +102,7 @@ Exit gate: no agent edits Three.js runtime files, and an unpassed run cannot pub
 
 Tasks:
 
-1. Create page with one input and `MAKE IT PLAYABLE`.
+1. Create page with one source input (pasted text or tweet image) and `MAKE IT PLAYABLE`.
 2. Live artifact timeline with short summaries.
 3. First-class `RELEASE BLOCKED` and before/after repair diff states.
 4. Control Room with run graph, artifacts, QA, latency, cost and fallback status.
@@ -102,6 +111,14 @@ Tasks:
 **Verify:** a fixture run can replay pass, block and repair states without fake model calls.
 
 Exit gate: a viewer can explain who produced what, why release was blocked, and what changed.
+
+Implemented as route-split deterministic fixture views at `/studio` and
+`/control-room/:runId`. The Control Room replays the current P3
+`EncounterSpec` → `DraftGameRecipe` → QA workflow, including the rejected
+Procession without an adjacent charge chain and the Encounter-only repair.
+`/games/:runId` requires both published status and a `release_published` event.
+P3 does not yet emit model cost, so the UI displays `Not reported by P3`
+instead of inventing proof data.
 
 ## P5 — Event-bound ElevenLabs voice
 
