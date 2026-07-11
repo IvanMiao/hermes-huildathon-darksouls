@@ -1,4 +1,4 @@
-# Tweetborne Implementation Plan
+# Soulloom Implementation Plan
 
 ## Priority model
 
@@ -54,7 +54,7 @@ Exit gate: the default Boss can be defeated and the player can die/restart witho
 
 Tasks:
 
-1. Development-only `window.__TWEETBORNE__` bridge.
+1. Development-only `window.__SOULLOOM__` bridge.
 2. Seeded attack selection and headless combat simulation.
 3. Checks for legal spec, reachable phase two, defeatable boss, death/restart and reachable voice trigger.
 4. Playwright page-load, keyboard-input, console-error and screenshot tests.

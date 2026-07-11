@@ -14,6 +14,6 @@ Before changing product scope, architecture, runtime contracts, or integrations,
 
 - `IMPLEMENTATION_PLAN.md` for delivery order and completion gates.
 - `TWEET_TO_GAME_BUILDATHON_PLAN.md` for the product and demo plan.
-- `TWEETBORNE_AGENCY_AND_INTEGRATION_DECISIONS.md` for agent and integration decisions.
+- `SOULLOOM_AGENCY_AND_INTEGRATION_DECISIONS.md` for agent and integration decisions.
 
 When implementation and documentation disagree, call out the mismatch instead of silently choosing one.

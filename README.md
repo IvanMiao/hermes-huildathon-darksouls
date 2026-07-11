@@ -1,6 +1,6 @@
-# Tweetborne
+# Soulloom
 
-Tweetborne is a constrained tweet-to-boss-fight runtime. The current vertical
+Soulloom is a constrained tweet-to-boss-fight runtime. The current vertical
 slice combines a strict `BossSpec` contract with a playable Three.js encounter
 and a deterministic combat state machine.
 
