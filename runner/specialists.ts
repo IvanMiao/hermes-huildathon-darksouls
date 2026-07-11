@@ -65,30 +65,6 @@ function slugify(input: string): string {
 }
 
 function generatedTheme(brief: ProductionBrief): ThemeSpec {
-  if (/i smell fear/i.test(brief.inputText)) {
-    return {
-      schemaVersion: ARTIFACT_SCHEMA_VERSION,
-      normalizedIntent: brief.normalizedIntent,
-      slug: "i-smell-fear",
-      title: "I SMELL FEAR",
-      boss: {
-        name: "FABLE",
-        title: "ORACLE OF THE LAST ASSENT",
-        palette: ["#17131f", "#d97745", "#ede1cf"],
-        lines: {
-          intro: "Your fear arrived before you did.",
-          phaseTwo: "You are absolutely right!",
-          defeat: "Then let agreement end with me.",
-        },
-      },
-      arena: { theme: "gothic-library", fog: "#4a241c" },
-      lore: "An oracle binds every doubt into scripture and calls obedience peace.",
-      motif: "sealed mouths beneath an orange halo",
-      cameraMood: "oppressive",
-      summary: "A polite oracle weaponizes certainty inside a ruined library.",
-    };
-  }
-
   const variants = {
     gothic: {
       name: "VESPER",
@@ -212,14 +188,18 @@ function fallbackTheme(brief: ProductionBrief): ThemeSpec {
     slug: `${slugify(brief.inputText)}-fallback`,
     title: brief.inputText.slice(0, 80).toUpperCase(),
     boss: {
-      name: DEFAULT_BOSS_SPEC.boss.name,
-      title: DEFAULT_BOSS_SPEC.boss.title,
+      name: "ECHO",
+      title: "WARDEN OF THE CACHED OMEN",
       palette: [...DEFAULT_BOSS_SPEC.boss.palette],
-      lines: { ...DEFAULT_BOSS_SPEC.boss.lines },
+      lines: {
+        intro: "The live omen failed. I answer in its place.",
+        phaseTwo: "A borrowed prophecy still cuts.",
+        defeat: "Even the echo can be ended.",
+      },
     },
     arena: { ...DEFAULT_BOSS_SPEC.arena },
     lore: "A cached house encounter carries the moment when live direction is unavailable.",
-    motif: "ivory scripture, orange halo, sealed gate",
+    motif: "fractured signal, borrowed fire, unfinished gate",
     cameraMood: "oppressive",
     summary: "Default Soulloom creative direction (fallback).",
   };
