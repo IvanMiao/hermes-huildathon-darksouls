@@ -279,7 +279,7 @@ Revelation:
 
 ### Step 5 — 最小 Encounter Agent 与真实 QA 返工
 
-**状态：已实现本地确定性 adapter 与接入契约；真实 Hermes delegate 仍待接入。**
+**状态：已实现本地确定性 adapter、并行 Hermes specialists 与接入契约。**
 
 **文件：** 后续 `runner/`、artifact schemas、fixtures
 

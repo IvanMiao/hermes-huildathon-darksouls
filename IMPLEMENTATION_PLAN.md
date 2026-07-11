@@ -94,6 +94,15 @@ one invalid Procession omits its required charge chain, is rejected, and repairs
 only Encounter before regression. Use `npm run studio:fixtures`
 to materialize complete auditable runs under `.soulloom/runs/`.
 
+Live integration uses the official Hermes scripted one-shot entry point for two
+schema-constrained specialists launched in parallel by `HermesStudioManager`.
+QA remains deterministic and invokes only the failed specialist once for
+repair. Direct specialist calls are required because Hermes v0.18.2
+`delegate_task` returns background handles before a scripted one-shot process
+can consolidate child results. The original 8-second timeout remains the
+offline adapter default; real Hermes CLI runs use a separate 30-second process
+timeout. Both limits are explicit and failures remain labelled fallbacks.
+
 ## P4 — Minimal Studio and Control Room UI (implemented)
 
 **Files:** `src/studio/*`, `src/control-room/*`
