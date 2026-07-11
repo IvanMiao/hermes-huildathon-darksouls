@@ -1,6 +1,7 @@
 import type { BossSpec } from "./types";
 
 export const FABLE_PHASE_TWO_VOICE_URL = "https://cheery-goat-595.eu-west-1.convex.cloud/api/storage/edc0ccec-1071-4c72-985c-e6126e883490";
+export const FABLE_BOSS_MUSIC_URL = "https://cheery-goat-595.eu-west-1.convex.cloud/api/storage/946f7c4d-23c2-4152-a594-d2858f7a3aa2";
 
 export const DEFAULT_BOSS_SPEC = {
   slug: "i-smell-fear",

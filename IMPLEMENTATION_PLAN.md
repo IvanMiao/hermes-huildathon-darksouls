@@ -182,6 +182,11 @@ Only after P1–P6 gates pass:
 4. Cached house music and audio ducking.
 5. Record fallback video and rehearse the two-minute path.
 
+FABLE now binds the cached Music v2 house score to combat state: phase one and
+phase two loop their authored sections, the transition and aftermath retain
+their dedicated cues, and the v3 voice ducks the score by roughly 9 dB. Audio
+starts on the first battle interaction to comply with browser autoplay policy.
+
 Do not add mobile controls, arbitrary code generation, generated sprite sheets, dynamic music in the critical path, inventory, progression, multiple bosses or a fourth attack.
 
 ## Time-box checkpoints

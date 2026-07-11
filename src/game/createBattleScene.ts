@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { FABLE_BOSS_MUSIC_URL } from "../boss-spec/defaultBossSpec";
 import type { BossSpec } from "../boss-spec/types";
 import type { GameRecipeV0 } from "../game-recipe/types";
 import {
@@ -19,6 +20,7 @@ import {
   type BattleVisualProfile,
 } from "./visuals/resolveBattleVisualProfile";
 import { createPhaseVoicePlayer, type PhaseVoicePlayer } from "./createPhaseVoicePlayer";
+import { createBattleMusicPlayer, type BattleMusicPlayer } from "./createBattleMusicPlayer";
 
 const MAX_PIXEL_RATIO = 2;
 const STRIKE_VISUAL_DURATION = 0.28;
@@ -480,6 +482,7 @@ function handleEvents(
   spec: BossSpec,
   recipe?: GameRecipeV0,
   phaseVoice?: PhaseVoicePlayer,
+  battleMusic?: BattleMusicPlayer,
 ): void {
   for (const event of events) {
     if (event.type === "player_strike") {
@@ -492,6 +495,7 @@ function handleEvents(
       timers.playerHit = 0.24;
       timers.cameraShake = 0.2;
     } else if (event.type === "phase_two") {
+      battleMusic?.enterPhaseTwo();
       phaseVoice?.playPhaseTwo();
       timers.eventCallout = 1.8;
       timers.cameraShake = 0.38;
@@ -504,9 +508,11 @@ function handleEvents(
       ui.eventCallout.classList.add("is-visible", "is-phase");
       visuals.bossBodyMaterial.emissiveIntensity = 0.48;
     } else if (event.type === "victory" || event.type === "defeat") {
+      battleMusic?.playAftermath();
       showResult(ui, event.type, spec);
     } else if (event.type === "restart") {
       phaseVoice?.reset();
+      battleMusic?.reset();
       ui.result.classList.add("is-hidden");
       ui.eventCallout.classList.remove("is-visible", "is-phase");
       visuals.bossBodyMaterial.emissiveIntensity = 0.14;
@@ -727,7 +733,14 @@ export function createBattleScene(recipe: GameRecipeV0, container: HTMLElement):
     ui.root.dataset.bossVisual = visualProfile.boss;
   }
   const input = createInput(container);
-  const phaseVoice = createPhaseVoicePlayer(spec.voice.url, container);
+  const battleMusic = createBattleMusicPlayer(
+    visualProfile.family === "fable" ? FABLE_BOSS_MUSIC_URL : "",
+    container,
+  );
+  const phaseVoice = createPhaseVoicePlayer(spec.voice.url, container, {
+    onPlaybackStart: battleMusic.duckForVoice,
+    onPlaybackEnd: battleMusic.restoreAfterVoice,
+  });
   const timers: EffectTimers = {
     slash: 0,
     bossHit: 0,
@@ -784,6 +797,7 @@ export function createBattleScene(recipe: GameRecipeV0, container: HTMLElement):
           spec,
           recipe,
           phaseVoice,
+          battleMusic,
         ),
         getIntroVisible: () => visualElapsed <= introVisibleUntil,
         showIntro: () => {
@@ -822,7 +836,7 @@ export function createBattleScene(recipe: GameRecipeV0, container: HTMLElement):
     visualElapsed += delta;
     const elapsed = visualElapsed;
     const events = controller.update(delta, input.read());
-    handleEvents(events, ui, visuals, timers, spec, recipe, phaseVoice);
+    handleEvents(events, ui, visuals, timers, spec, recipe, phaseVoice, battleMusic);
 
     const { player, boss, outcome } = controller.state;
     visuals.player.position.set(player.position.x, 0, player.position.z);
@@ -881,6 +895,7 @@ export function createBattleScene(recipe: GameRecipeV0, container: HTMLElement):
     resizeObserver.disconnect();
     input.dispose();
     phaseVoice.dispose();
+    battleMusic.dispose();
     ui.restartButton.removeEventListener("click", input.requestRestart);
     ui.root.remove();
     renderer.domElement.remove();
