@@ -89,14 +89,16 @@ npx wrangler pages dev dist
 ## 5. Production acceptance gate
 
 1. `GET https://<pages-domain>/api/health` reports `agentMode: "hermes"`.
-2. Submit a new text run from `/studio`; the button moves through queued and
-   producing states without a cross-origin request.
+2. Submit a new text run from `/studio`; it immediately opens the live Control
+   Room, which moves through queued and producing states without a cross-origin
+   request.
 3. A duplicate submission with the same idempotency key does not create a
    second Hermes run.
 4. A second concurrent request receives `429` and `Retry-After: 5`.
 5. The completed run reports `convexEvidence: "mirrored"` and zero undeclared
    fallbacks.
-6. `/control-room/:runId` reads the live mirrored evidence.
+6. `/control-room/:runId?job=1` shows events during production; completion stays
+   in the Control Room and unlocks `OPEN BOSS FIGHT`.
 7. `/games/:runId` loads the generated ElevenLabs voice from Convex storage.
 8. Stop the local runner: historical game URLs must remain playable while new
    production requests fail clearly.

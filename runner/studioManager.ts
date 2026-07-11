@@ -14,6 +14,7 @@ import {
 } from "./contracts";
 import { evaluateReleaseCandidate } from "./qa";
 import { RunStore } from "./runStore";
+import type { RunStoreObserver } from "./runStore";
 import {
   createLocalStudioAdapters,
   createProductionBrief,
@@ -27,7 +28,7 @@ export interface StudioManagerOptions {
   adapters?: StudioAdapters;
 }
 
-export interface StartRunOptions {
+export interface StartRunOptions extends RunStoreObserver {
   runId?: string;
 }
 
@@ -143,7 +144,10 @@ export class HermesStudioManager {
   async start(inputText: string, options: StartRunOptions = {}): Promise<StudioRunResult> {
     const brief = createProductionBrief(inputText);
     const runId = options.runId ?? createRunId(brief);
-    const store = await RunStore.create(this.runsRoot, runId);
+    const store = await RunStore.create(this.runsRoot, runId, {
+      onEvent: options.onEvent,
+      onArtifact: options.onArtifact,
+    });
     await store.appendEvent({
       actor: "Studio Manager",
       type: "run_started",

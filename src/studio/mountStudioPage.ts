@@ -1,6 +1,6 @@
 import { STUDIO_RUN_FIXTURES } from "./fixtures";
 import { createPageShell, getShellMain } from "./pageShell";
-import { startStudioRun } from "./studioApi";
+import { createStudioRun } from "./studioApi";
 
 const ACCEPTED_TWEET_IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
 
@@ -173,14 +173,8 @@ export function mountStudioPage(root: HTMLElement): void {
     submitButton.disabled = true;
     submitLabel.textContent = "STARTING HERMES…";
     try {
-      const result = await startStudioRun(inputText, {
-        onStateChange: (state) => {
-          submitLabel.textContent = state === "queued"
-            ? "RUN QUEUED…"
-            : "HERMES IS PRODUCING…";
-        },
-      });
-      window.location.assign(result.gameUrl ?? result.controlRoomUrl);
+      const job = await createStudioRun(inputText);
+      window.location.assign(job.controlRoomUrl);
     } catch (requestError) {
       error.textContent = requestError instanceof Error
         ? requestError.message

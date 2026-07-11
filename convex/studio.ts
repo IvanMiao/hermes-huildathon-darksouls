@@ -9,6 +9,14 @@ const voiceEvidence = v.object({
   source: v.literal("elevenlabs_generated"),
 });
 
+const elevenLabsVoiceSettings = {
+  stability: 0.42,
+  similarity_boost: 0.75,
+  style: 0,
+  use_speaker_boost: true,
+  speed: 0.88,
+} as const;
+
 export const generateVoice = action({
   args: { text: v.string(), integrationToken: v.string() },
   handler: async (ctx, { text, integrationToken }) => {
@@ -32,7 +40,8 @@ export const generateVoice = action({
         },
         body: JSON.stringify({
           text,
-          model_id: "eleven_flash_v2_5",
+          model_id: "eleven_multilingual_v2",
+          voice_settings: elevenLabsVoiceSettings,
         }),
       },
     );

@@ -104,7 +104,9 @@ through the same Manager-owned artifact boundary.
 `npm run studio:local -- "tweet text"` retains the deterministic path, while
 `npm run studio:server` exposes the live workflow through an authenticated,
 asynchronous local API. Cloudflare Pages proxies `/api/*` to its protected
-Tunnel without placing runner or Access tokens in the Vite bundle. The Control
-Room reads completed live evidence from Convex and keeps deterministic fixtures
-for offline replay. See [CLOUDFLARE_DEPLOYMENT.md](./CLOUDFLARE_DEPLOYMENT.md)
+Tunnel without placing runner or Access tokens in the Vite bundle. A submitted
+run enters the Control Room immediately; durable events and artifacts appear as
+Hermes produces them. Passing QA unlocks `OPEN BOSS FIGHT` without automatically
+opening the game. Deterministic fixtures remain available for offline replay.
+See [CLOUDFLARE_DEPLOYMENT.md](./CLOUDFLARE_DEPLOYMENT.md)
 for the production configuration and acceptance gate.

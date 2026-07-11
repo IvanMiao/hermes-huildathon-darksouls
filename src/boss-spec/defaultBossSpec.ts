@@ -1,5 +1,7 @@
 import type { BossSpec } from "./types";
 
+export const FABLE_PHASE_TWO_VOICE_URL = "https://cheery-goat-595.eu-west-1.convex.cloud/api/storage/476b52d1-3547-492a-bc0a-e91221fedd78";
+
 export const DEFAULT_BOSS_SPEC = {
   slug: "i-smell-fear",
   title: "I SMELL FEAR",
@@ -24,7 +26,7 @@ export const DEFAULT_BOSS_SPEC = {
   voice: {
     trigger: "phase_two_or_defeat",
     text: "You are absolutely right!",
-    url: "/runs/i-smell-fear/voice.mp3",
+    url: FABLE_PHASE_TWO_VOICE_URL,
   },
   arena: {
     theme: "gothic-library",

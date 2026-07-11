@@ -31,6 +31,11 @@ interface WriteArtifactInput<K extends ArtifactKind> {
   data: ArtifactDataByKind[K];
 }
 
+export interface RunStoreObserver {
+  onEvent?: (event: StudioEvent) => void;
+  onArtifact?: (artifact: AnyArtifactEnvelope) => void;
+}
+
 function parseJson<T>(contents: string): T {
   return JSON.parse(contents) as T;
 }
@@ -47,18 +52,23 @@ export class RunStore {
   private constructor(
     readonly runId: string,
     rootDirectory: string,
+    private readonly observer: RunStoreObserver = {},
   ) {
     this.runDirectory = resolve(rootDirectory, runId);
     this.artifactsDirectory = join(this.runDirectory, "artifacts");
     this.eventsPath = join(this.runDirectory, "events.jsonl");
   }
 
-  static async create(rootDirectory: string, runId: string): Promise<RunStore> {
+  static async create(
+    rootDirectory: string,
+    runId: string,
+    observer: RunStoreObserver = {},
+  ): Promise<RunStore> {
     if (!SAFE_RUN_ID.test(runId)) {
       throw new Error(`Unsafe run id '${runId}'.`);
     }
 
-    const store = new RunStore(runId, rootDirectory);
+    const store = new RunStore(runId, rootDirectory, observer);
     await mkdir(store.artifactsDirectory, { recursive: true });
     return store;
   }
@@ -77,6 +87,7 @@ export class RunStore {
     });
     this.eventQueue = pendingWrite.catch(() => undefined);
     await pendingWrite;
+    this.observer.onEvent?.(structuredClone(event));
     return event;
   }
 
@@ -119,6 +130,7 @@ export class RunStore {
       summary: `${input.kind} v${version} recorded (${input.source.mode}).`,
       artifact: { kind: input.kind, version },
     });
+    this.observer.onArtifact?.(structuredClone(artifact) as AnyArtifactEnvelope);
     return artifact;
   }
 

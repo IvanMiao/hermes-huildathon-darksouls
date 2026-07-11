@@ -5,6 +5,7 @@ import {
   type CompletedStudioRun,
   type StudioApiServer,
   type StudioJobView,
+  type StudioProductionProgress,
 } from "./studioApiServer";
 
 const servers: StudioApiServer[] = [];
@@ -25,7 +26,10 @@ afterEach(async () => {
 });
 
 async function startServer(
-  produce: (inputText: string) => Promise<CompletedStudioRun>,
+  produce: (
+    inputText: string,
+    progress: StudioProductionProgress,
+  ) => Promise<CompletedStudioRun>,
   apiToken?: string,
 ): Promise<string> {
   const studioServer = createStudioApiServer({
@@ -53,10 +57,18 @@ async function waitForCompletedJob(baseUrl: string, statusUrl: string): Promise<
 
 describe("studio runner HTTP API", () => {
   it("accepts a job asynchronously and exposes its completed result", async () => {
-    const produce = vi.fn(async (inputText: string) => ({
-      ...publishedRun,
-      runId: inputText,
-    }));
+    const produce = vi.fn(async (_inputText: string, progress: StudioProductionProgress) => {
+      progress.onEvent({
+        runId: progress.runId,
+        sequence: 1,
+        occurredAt: "2026-07-11T12:00:00.000Z",
+        actor: "Studio Manager",
+        type: "run_started",
+        status: "started",
+        summary: "Production started.",
+      });
+      return { ...publishedRun, runId: progress.runId };
+    });
     const baseUrl = await startServer(produce);
 
     const startResponse = await fetch(`${baseUrl}/api/studio/runs`, {
@@ -69,12 +81,18 @@ describe("studio runner HTTP API", () => {
     });
     expect(startResponse.status).toBe(202);
     const accepted = await startResponse.json() as StudioJobView;
-    expect(accepted).toMatchObject({ state: "queued" });
+    expect(accepted).toMatchObject({
+      state: "queued",
+      runId: accepted.requestId,
+      controlRoomUrl: `/control-room/${accepted.requestId}?job=1`,
+      inputText: "A clock refuses midnight.",
+    });
 
     const completed = await waitForCompletedJob(baseUrl, accepted.statusUrl);
     expect(completed).toMatchObject({
       state: "completed",
-      result: { runId: "A clock refuses midnight.", status: "published" },
+      result: { runId: accepted.requestId, status: "published" },
+      events: [{ type: "run_started" }],
     });
     expect(produce).toHaveBeenCalledOnce();
   });

@@ -132,6 +132,10 @@ instead of inventing proof data.
 The public root route also mounts Studio, with `/studio` retained as a
 compatibility alias. The deterministic P2 battle sandbox lives at `/playground`,
 while published encounters remain behind the `/games/:runId` release gate.
+Live text submissions now enter `/control-room/:runId?job=1` immediately. That
+view polls the authenticated runner job, renders durable events and artifacts as
+Hermes produces them, and never auto-opens the game. A passed, mirrored release
+unlocks `OPEN BOSS FIGHT` as the sole completion CTA.
 
 ## P5 — Event-bound ElevenLabs voice
 
@@ -139,10 +143,11 @@ while published encounters remain behind the `/games/:runId` release gate.
 
 **Verify:** ten phase transitions produce ten single voice triggers; missing audio never blocks gameplay.
 
-Scaffolded: a Convex Action calls ElevenLabs Flash v2.5, stores the MP3 in
-Convex File Storage, and the runtime preloads HTTPS voice artifacts for a
-single `phase_two` playback. Live credentials and the ten-transition audio gate
-are still pending, so P5 is not yet complete.
+Implemented: a Convex Action calls ElevenLabs Multilingual v2 with an explicit
+high-fidelity character-voice profile, stores the MP3 in Convex File Storage,
+and the runtime preloads HTTPS voice artifacts for a single `phase_two`
+playback. Production credential state is managed outside the repository; the
+ten-transition audio gate is still required before P5 closes.
 
 ## P6 — Convex evidence layer and Cloudflare delivery
 
@@ -157,10 +162,14 @@ Order:
 
 **Verify:** three published historical games remain playable while the local runner is offline.
 
-Scaffolded: the CLI can mirror one complete P3 result into a minimal indexed
-`studioRuns` evidence table, and `/games/:runId` prefers a published Convex
-recipe before falling back to local fixtures. Realtime Control Room
-subscriptions, production deployment, and Cloudflare delivery remain pending.
+Implemented in code: the CLI and HTTP runner mirror complete production results
+into `studioRuns`; `/games/:runId` prefers the published Convex recipe and the
+Control Room can replay live mirrored evidence. The runner API is asynchronous,
+idempotent, bearer-protected, and single-concurrency. A same-origin Pages
+Function holds the runner and Cloudflare Access secrets and proxies only the
+allowlisted `/api/*` surface through the Tunnel. Production dashboard bindings,
+the fixed Tunnel hostname, and the three-history offline acceptance gate remain
+deployment tasks; see `CLOUDFLARE_DEPLOYMENT.md`.
 
 ## P7 — Demo polish and freeze
 

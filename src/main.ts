@@ -55,6 +55,14 @@ async function mountStudio(): Promise<void> {
 }
 
 async function mountControlRoom(runId: string): Promise<void> {
+  if (new URLSearchParams(window.location.search).get("job") === "1") {
+    const [, { mountLiveControlRoom }] = await Promise.all([
+      import("./studio/studio.css"),
+      import("./control-room/mountLiveControlRoom"),
+    ]);
+    mountLiveControlRoom(requireAppRoot(), runId);
+    return;
+  }
   const [, { findStudioRunFixture }, { mountControlRoom }, { mountReleaseGate }, { toLiveStudioRun }] = await Promise.all([
     import("./studio/studio.css"),
     import("./studio/fixtures"),

@@ -78,7 +78,6 @@ const DIRECT_BOSS_SPEC: BossSpec = {
   ],
   voice: {
     ...DEFAULT_BOSS_SPEC.voice,
-    url: `/runs/${DIRECT_RUN_ID}/voice.mp3`,
   },
 };
 
