@@ -15,6 +15,23 @@ function advance(controller: BattleController, seconds: number, input = idleInpu
   }
 }
 
+function collectAttackOrder(seed: number, count: number): string[] {
+  const controller = new BattleController(DEFAULT_BOSS_SPEC, { seed });
+  controller.state.player.hp = 1_000_000;
+  const attacks: string[] = [];
+
+  for (let elapsed = 0; elapsed < 45 && attacks.length < count; elapsed += 0.016) {
+    const events = controller.update(0.016, idleInput);
+    for (const event of events) {
+      if (event.type === "boss_attack_started") {
+        attacks.push(event.attack);
+      }
+    }
+  }
+
+  return attacks;
+}
+
 describe("BattleController", () => {
   it("moves the player but keeps them inside the arena", () => {
     const controller = new BattleController(DEFAULT_BOSS_SPEC);
@@ -75,5 +92,14 @@ describe("BattleController", () => {
     expect(restart).toEqual([{ type: "restart" }]);
     expect(controller.state.outcome).toBe("fighting");
     expect(controller.state.boss.hp).toBe(DEFAULT_BOSS_SPEC.boss.maxHp);
+  });
+
+  it("keeps the teaching cycle fixed and replays later attacks from a seed", () => {
+    const firstRun = collectAttackOrder(867_5309, 8);
+    const replay = collectAttackOrder(867_5309, 8);
+
+    expect(firstRun.slice(0, 3)).toEqual(["sweep", "charge", "nova"]);
+    expect(firstRun).toHaveLength(8);
+    expect(replay).toEqual(firstRun);
   });
 });
