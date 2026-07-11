@@ -10,7 +10,14 @@ import {
 } from "./combat/BattleController";
 import { createArenaModel } from "./visuals/createArenaModel";
 import { createBossModel } from "./visuals/createBossModel";
+import { createGeneratedArenaModel } from "./visuals/createGeneratedArenaModel";
+import { createGeneratedBossModel } from "./visuals/createGeneratedBossModel";
+import { createGeneratedPlayerModel } from "./visuals/createGeneratedPlayerModel";
 import { createPlayerModel } from "./visuals/createPlayerModel";
+import {
+  resolveBattleVisualProfile,
+  type BattleVisualProfile,
+} from "./visuals/resolveBattleVisualProfile";
 import { createPhaseVoicePlayer, type PhaseVoicePlayer } from "./createPhaseVoicePlayer";
 
 const MAX_PIXEL_RATIO = 2;
@@ -224,11 +231,21 @@ function createTelegraphs(
   return { sweep, charge, nova, novaCore, slash };
 }
 
-function createVisuals(scene: THREE.Scene, recipe: GameRecipeV0): CombatVisuals {
+function createVisuals(
+  scene: THREE.Scene,
+  recipe: GameRecipeV0,
+  profile: BattleVisualProfile,
+): CombatVisuals {
   const spec = recipe.boss;
-  const arena = createArenaModel(spec);
-  const boss = createBossModel(spec);
-  const player = createPlayerModel();
+  const arena = profile.family === "fable"
+    ? createArenaModel(spec)
+    : createGeneratedArenaModel(spec, profile.arena);
+  const boss = profile.family === "fable"
+    ? createBossModel(spec)
+    : createGeneratedBossModel(spec, profile.boss);
+  const player = profile.family === "fable"
+    ? createPlayerModel()
+    : createGeneratedPlayerModel(profile.player);
   const telegraphs = createTelegraphs(recipe);
   const arenaBoundary = new THREE.Mesh(
     new THREE.RingGeometry(0.97, 1, 128),
@@ -635,6 +652,7 @@ function disposeScene(scene: THREE.Scene): void {
 
 export function createBattleScene(recipe: GameRecipeV0, container: HTMLElement): () => void {
   const spec = recipe.boss;
+  const visualProfile = resolveBattleVisualProfile(recipe);
   const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -645,8 +663,19 @@ export function createBattleScene(recipe: GameRecipeV0, container: HTMLElement):
   container.append(renderer.domElement);
 
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color("#070609");
-  scene.fog = new THREE.FogExp2(spec.arena.fog, 0.062);
+  const generatedGarden = visualProfile.family === "generated"
+    && visualProfile.arena === "obsidian_garden";
+  scene.background = new THREE.Color(
+    visualProfile.family === "fable"
+      ? "#070609"
+      : generatedGarden ? "#050a07" : "#050914",
+  );
+  scene.fog = new THREE.FogExp2(
+    visualProfile.family === "fable"
+      ? spec.arena.fog
+      : generatedGarden ? "#102218" : "#111a38",
+    visualProfile.family === "fable" ? 0.062 : 0.045,
+  );
 
   const camera = new THREE.PerspectiveCamera(44, 16 / 9, 0.1, 70);
   const cameraBase = recipe.presentation.cameraMood === "watchful"
@@ -657,8 +686,15 @@ export function createBattleScene(recipe: GameRecipeV0, container: HTMLElement):
   camera.position.copy(cameraBase);
   camera.lookAt(0, 0.75, 0);
 
-  scene.add(new THREE.HemisphereLight("#8b8b91", "#09060b", 1.15));
-  const moonlight = new THREE.DirectionalLight("#c6ccd0", 2.6);
+  scene.add(new THREE.HemisphereLight(
+    visualProfile.family === "fable" ? "#8b8b91" : generatedGarden ? "#82a875" : "#789bc9",
+    visualProfile.family === "fable" ? "#09060b" : "#030609",
+    visualProfile.family === "fable" ? 1.15 : 1.38,
+  ));
+  const moonlight = new THREE.DirectionalLight(
+    visualProfile.family === "fable" ? "#c6ccd0" : generatedGarden ? "#d6ffb8" : "#b9d8ff",
+    visualProfile.family === "fable" ? 2.6 : 3.15,
+  );
   moonlight.position.set(-5, 9, 4);
   moonlight.castShadow = true;
   moonlight.shadow.mapSize.set(1024, 1024);
@@ -668,15 +704,28 @@ export function createBattleScene(recipe: GameRecipeV0, container: HTMLElement):
   moonlight.shadow.camera.bottom = -8;
   scene.add(moonlight);
 
-  const emberLight = new THREE.PointLight(spec.boss.palette[1], 22, 16, 2);
+  const emberLight = new THREE.PointLight(
+    visualProfile.family === "fable"
+      ? spec.boss.palette[1]
+      : generatedGarden ? "#a8e063" : "#9c7cff",
+    visualProfile.family === "fable" ? 22 : 28,
+    16,
+    2,
+  );
   emberLight.position.set(0, 1.2, -2.5);
   scene.add(emberLight);
 
   const controller = new BattleController(recipe);
-  const visuals = createVisuals(scene, recipe);
+  const visuals = createVisuals(scene, recipe, visualProfile);
   const ui = createInterface(container, spec);
   ui.root.dataset.archetype = recipe.archetype;
   ui.root.dataset.arenaRule = recipe.arena.rule;
+  ui.root.dataset.visualFamily = visualProfile.family;
+  if (visualProfile.family === "generated") {
+    ui.root.dataset.arenaVisual = visualProfile.arena;
+    ui.root.dataset.playerVisual = visualProfile.player;
+    ui.root.dataset.bossVisual = visualProfile.boss;
+  }
   const input = createInput(container);
   const phaseVoice = createPhaseVoicePlayer(spec.voice.url, container);
   const timers: EffectTimers = {

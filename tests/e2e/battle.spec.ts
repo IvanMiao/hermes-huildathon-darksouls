@@ -28,6 +28,8 @@ test("loads a crisp Three.js scene without browser errors", async ({ page }) => 
   await waitForDebugBridge(page);
 
   await expect(page.locator("#game canvas")).toBeVisible();
+  await expect(page.locator("[data-scene-ui]")).toHaveAttribute("data-visual-family", "fable");
+  await expect(page.locator("[data-scene-ui]")).not.toHaveAttribute("data-arena-visual");
   const canvasSize = await page.locator("#game canvas").evaluate((canvas) => ({
     backingWidth: (canvas as HTMLCanvasElement).width,
     backingHeight: (canvas as HTMLCanvasElement).height,
@@ -147,6 +149,20 @@ test("opens only a published run with its release-gated recipe", async ({ page }
     "data-archetype",
     "procession",
   );
+  await expect(page.locator("[data-scene-ui]")).toHaveAttribute("data-visual-family", "generated");
+  await expect(page.locator("[data-scene-ui]")).toHaveAttribute(
+    "data-arena-visual",
+    /^(astral_ruins|obsidian_garden)$/,
+  );
+  await expect(page.locator("[data-scene-ui]")).toHaveAttribute(
+    "data-player-visual",
+    /^(starforged_witness|thorn_wanderer)$/,
+  );
+  await expect(page.locator("[data-scene-ui]")).toHaveAttribute(
+    "data-boss-visual",
+    /^(orrery_beast|iron_seraph)$/,
+  );
+  await expect(page.locator(".boss-name")).toHaveText("VESPER");
 
   await page.goto("/games/unpassed-run");
   await expect(page.locator("#game canvas")).toHaveCount(0);
