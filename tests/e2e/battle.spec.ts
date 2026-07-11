@@ -109,3 +109,46 @@ test("captures the deterministic sweep release frame", async ({ page }) => {
     maxDiffPixelRatio: 0.02,
   });
 });
+
+test("loads and exposes the Procession and Revelation package rules", async ({ page }) => {
+  await page.goto("/?recipe=procession");
+  await waitForDebugBridge(page);
+  await expect(page.locator("[data-scene-ui]")).toHaveAttribute(
+    "data-archetype",
+    "procession",
+  );
+  await page.evaluate(() => {
+    (window as any).__SOULLOOM__.pause();
+    (window as any).__SOULLOOM__.trigger("phase_two");
+    (window as any).__SOULLOOM__.step(2_000);
+  });
+  await page.waitForFunction(() => (
+    (window as any).__SOULLOOM__.getSnapshot().combat.arena.radius < 5.15
+  ));
+
+  await page.goto("/?recipe=revelation");
+  await waitForDebugBridge(page);
+  await page.evaluate(() => {
+    (window as any).__SOULLOOM__.pause();
+    (window as any).__SOULLOOM__.trigger("phase_two");
+    (window as any).__SOULLOOM__.trigger("nova");
+  });
+  await expect(page.locator("[data-scene-ui]")).toHaveAttribute(
+    "data-archetype",
+    "revelation",
+  );
+  await expect(page.locator(".event-callout")).toContainText("OUTER RING");
+});
+
+test("opens only a published run with its release-gated recipe", async ({ page }) => {
+  await page.goto("/games/fixture-encounter-repair");
+  await waitForDebugBridge(page);
+  await expect(page.locator("[data-scene-ui]")).toHaveAttribute(
+    "data-archetype",
+    "procession",
+  );
+
+  await page.goto("/games/unpassed-run");
+  await expect(page.locator("#game canvas")).toHaveCount(0);
+  await expect(page.locator("body")).toContainText("RELEASE BLOCKED");
+});

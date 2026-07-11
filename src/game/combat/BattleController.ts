@@ -1,4 +1,5 @@
 import type { AttackType, BossSpec } from "../../boss-spec/types";
+import type { GameRecipeV0 } from "../../game-recipe/types";
 
 export interface Vec2 {
   x: number;
@@ -10,11 +11,6 @@ export interface CombatInput {
   attackPressed: boolean;
   dodgePressed: boolean;
   restartPressed: boolean;
-}
-
-export interface BattleControllerOptions {
-  /** Replays the same post-opening attack choices for the same seed. */
-  seed?: number;
 }
 
 export type CombatOutcome = "fighting" | "victory" | "defeat";
@@ -44,6 +40,11 @@ export interface CombatState {
   outcome: CombatOutcome;
   phase: 1 | 2;
   phaseTransitionRemaining: number;
+  arena: {
+    radius: number;
+    initialRadius: number;
+    minimumRadius: number;
+  };
   player: {
     hp: number;
     maxHp: number;
@@ -64,7 +65,9 @@ export interface CombatState {
   };
 }
 
-const ARENA_RADIUS = 5.15;
+export const OPEN_ARENA_RADIUS = 5.15;
+export const PROCESSION_MINIMUM_RADIUS = 3.8;
+const PROCESSION_SHRINK_SECONDS = 18;
 const PLAYER_MAX_HP = 100;
 const PLAYER_SPEED = 3.7;
 const PLAYER_STRIKE_DAMAGE = 58;
@@ -75,7 +78,6 @@ const DODGE_INVULNERABILITY = 0.29;
 const DODGE_COOLDOWN = 0.7;
 const DODGE_SPEED = 9.2;
 const CHARGE_SPEED = 9.6;
-const DEFAULT_COMBAT_SEED = 0x51_4c_4d;
 
 const NO_INPUT: CombatInput = {
   movement: { x: 0, z: 0 },
@@ -101,26 +103,34 @@ function distance(a: Vec2, b: Vec2): number {
   return Math.hypot(a.x - b.x, a.z - b.z);
 }
 
-function clampToArena(position: Vec2): void {
+function clampToArena(position: Vec2, arenaRadius: number): void {
   const radius = length(position);
-  if (radius <= ARENA_RADIUS) {
+  if (radius <= arenaRadius) {
     return;
   }
 
-  position.x = (position.x / radius) * ARENA_RADIUS;
-  position.z = (position.z / radius) * ARENA_RADIUS;
+  position.x = (position.x / radius) * arenaRadius;
+  position.z = (position.z / radius) * arenaRadius;
 }
 
 function countdown(value: number, delta: number): number {
   return Math.max(0, value - delta);
 }
 
-function createInitialState(spec: BossSpec): CombatState {
+function createInitialState(recipe: GameRecipeV0): CombatState {
+  const spec = recipe.boss;
   return {
     elapsed: 0,
     outcome: "fighting",
     phase: 1,
     phaseTransitionRemaining: 0,
+    arena: {
+      radius: OPEN_ARENA_RADIUS,
+      initialRadius: OPEN_ARENA_RADIUS,
+      minimumRadius: recipe.arena.rule === "closing_ring"
+        ? PROCESSION_MINIMUM_RADIUS
+        : OPEN_ARENA_RADIUS,
+    },
     player: {
       hp: PLAYER_MAX_HP,
       maxHp: PLAYER_MAX_HP,
@@ -144,21 +154,17 @@ function createInitialState(spec: BossSpec): CombatState {
 
 export class BattleController {
   state: CombatState;
-  private randomState: number;
-  private lastAttackType: AttackType | null = null;
 
-  constructor(
-    private readonly spec: BossSpec,
-    private readonly options: BattleControllerOptions = {},
-  ) {
-    this.state = createInitialState(spec);
-    this.randomState = options.seed ?? DEFAULT_COMBAT_SEED;
+  constructor(private readonly recipe: GameRecipeV0) {
+    this.state = createInitialState(recipe);
+  }
+
+  private get spec(): BossSpec {
+    return this.recipe.boss;
   }
 
   reset(): CombatEvent[] {
-    this.state = createInitialState(this.spec);
-    this.randomState = this.options.seed ?? DEFAULT_COMBAT_SEED;
-    this.lastAttackType = null;
+    this.state = createInitialState(this.recipe);
     return [{ type: "restart" }];
   }
 
@@ -180,12 +186,26 @@ export class BattleController {
       return events;
     }
 
+    this.updateArena(safeDelta);
     this.updatePlayer(safeDelta, input, events);
     if (this.state.outcome === "fighting") {
       this.updateBoss(safeDelta, events);
     }
 
     return events;
+  }
+
+  private updateArena(delta: number): void {
+    if (this.state.phase !== 2 || this.recipe.arena.rule !== "closing_ring") {
+      return;
+    }
+
+    const arena = this.state.arena;
+    const shrinkPerSecond = (arena.initialRadius - arena.minimumRadius)
+      / PROCESSION_SHRINK_SECONDS;
+    arena.radius = Math.max(arena.minimumRadius, arena.radius - shrinkPerSecond * delta);
+    clampToArena(this.state.player.position, arena.radius);
+    clampToArena(this.state.boss.position, arena.radius);
   }
 
   private updateTimers(delta: number): void {
@@ -225,7 +245,7 @@ export class BattleController {
 
     player.position.x += velocity.x * delta;
     player.position.z += velocity.z * delta;
-    clampToArena(player.position);
+    clampToArena(player.position, this.state.arena.radius);
 
     if (!input.attackPressed || player.attackCooldown > 0 || player.dodgeRemaining > 0) {
       return;
@@ -255,6 +275,7 @@ export class BattleController {
       this.state.phaseTransitionRemaining = 1.15;
       this.state.boss.attack = null;
       this.state.boss.nextAttackRemaining = 0.75;
+      this.state.boss.attackIndex = 0;
       events.push({ type: "phase_two" });
     }
   }
@@ -284,14 +305,14 @@ export class BattleController {
       if (attack.elapsed >= attack.duration) {
         attack.stage = "recovery";
         attack.elapsed = 0;
-        attack.duration = this.state.phase === 2 ? 0.48 : 0.72;
+        attack.duration = this.state.phase === 2 ? 0.5 : 0.72;
       }
       return;
     }
 
     if (attack.stage === "recovery" && attack.elapsed >= attack.duration) {
       boss.attack = null;
-      boss.nextAttackRemaining = this.state.phase === 2 ? 0.58 : 0.92;
+      boss.nextAttackRemaining = this.nextAttackDelay();
     }
   }
 
@@ -302,7 +323,10 @@ export class BattleController {
       return;
     }
 
-    const phaseSpeed = this.state.phase === 2 ? this.spec.boss.phase2Multiplier : 1;
+    const phaseSpeed = this.state.phase === 2
+      && this.recipe.combat.phaseTwoRule === "haste"
+      ? this.spec.boss.phase2Multiplier
+      : 1;
     boss.attackIndex += 1;
     boss.attack = {
       type: attackSpec.type,
@@ -312,33 +336,25 @@ export class BattleController {
       target: { ...this.state.player.position },
       hasHit: false,
     };
-    this.lastAttackType = attackSpec.type;
     events.push({ type: "boss_attack_started", attack: attackSpec.type });
   }
 
   private selectAttack(): BossSpec["attacks"][number] | undefined {
-    const attackIndex = this.state.boss.attackIndex;
-
-    // Keep the first cycle fixed so every encounter teaches the same three verbs.
-    if (attackIndex < this.spec.attacks.length) {
-      return this.spec.attacks[attackIndex];
-    }
-
-    const candidates = this.spec.attacks.filter(
-      ({ type }) => type !== this.lastAttackType,
-    );
-    const pool = candidates.length > 0 ? candidates : this.spec.attacks;
-    return pool[Math.floor(this.nextRandom() * pool.length)];
+    const order = this.state.phase === 1
+      ? this.recipe.combat.phaseOneOrder
+      : this.recipe.combat.phaseTwoOrder;
+    const attackType = order[this.state.boss.attackIndex % order.length];
+    return this.spec.attacks.find(({ type }) => type === attackType);
   }
 
-  private nextRandom(): number {
-    // Mulberry32 is small, deterministic across browsers, and sufficient for
-    // encounter ordering. It is deliberately not used for security decisions.
-    this.randomState = (this.randomState + 0x6d_2b_79_f5) >>> 0;
-    let value = this.randomState;
-    value = Math.imul(value ^ (value >>> 15), value | 1);
-    value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
-    return ((value ^ (value >>> 14)) >>> 0) / 4_294_967_296;
+  private nextAttackDelay(): number {
+    if (this.state.phase === 1) {
+      return 0.92;
+    }
+    if (this.recipe.combat.phaseTwoRule === "haste") {
+      return 0.58;
+    }
+    return this.recipe.combat.phaseTwoRule === "charge_chain" ? 0.68 : 0.78;
   }
 
   private updateActiveAttack(
@@ -353,7 +369,7 @@ export class BattleController {
       });
       this.state.boss.position.x += direction.x * CHARGE_SPEED * delta;
       this.state.boss.position.z += direction.z * CHARGE_SPEED * delta;
-      clampToArena(this.state.boss.position);
+      clampToArena(this.state.boss.position, this.state.arena.radius);
     }
 
     if (attack.hasHit || !this.attackTouchesPlayer(attack)) {
@@ -382,7 +398,28 @@ export class BattleController {
   }
 
   private attackTouchesPlayer(attack: BossAttackState): boolean {
-    const range = attack.type === "sweep" ? 2.45 : attack.type === "nova" ? 3.65 : 0.72;
-    return distance(this.state.player.position, this.state.boss.position) <= range;
+    const playerDistance = distance(
+      this.state.player.position,
+      this.state.boss.position,
+    );
+    if (attack.type === "nova") {
+      return doesNovaHit(this.recipe, this.state.phase, playerDistance);
+    }
+    return playerDistance <= (attack.type === "sweep" ? 2.45 : 0.72);
   }
+}
+
+/** Shared by combat and deterministic QA so recipe safety semantics cannot drift. */
+export function doesNovaHit(
+  recipe: GameRecipeV0,
+  phase: 1 | 2,
+  playerDistance: number,
+): boolean {
+  if (recipe.archetype !== "revelation") {
+    return playerDistance <= 3.65;
+  }
+  if (phase === 1) {
+    return playerDistance >= 2.55 && playerDistance <= 4.65;
+  }
+  return playerDistance < 3.65;
 }
