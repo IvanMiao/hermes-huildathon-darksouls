@@ -38,6 +38,7 @@ export type StudioActor =
 export interface ArtifactSource {
   mode: "generated" | "repair" | "cached_fallback" | "default_fallback";
   fallbackReason?: string;
+  agentRuntime?: "local_fixture" | "hermes_specialist";
 }
 
 export interface ProductionBrief {

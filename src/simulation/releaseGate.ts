@@ -158,7 +158,7 @@ function verifyPackageRule(recipe: GameRecipeV0): { passed: boolean; message: st
       passed,
       message: passed
         ? "Duel haste shortened the phase-two telegraph."
-        : "Duel haste did not shorten the phase-two telegraph.",
+        : `Duel haste failed: phase-two opening telegraph ${phaseTwoTelegraph.toFixed(2)}s must be shorter than phase-one ${phaseOneTelegraph.toFixed(2)}s.`,
     };
   }
 
