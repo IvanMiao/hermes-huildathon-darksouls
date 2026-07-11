@@ -7,13 +7,16 @@
     "dev": "vite",
     "build": "vite build",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "test:e2e": "playwright test",
+    "typecheck": "tsc --noEmit",
+    "verify": "npm test && npm run typecheck && npm run build && npm run test:e2e"
   },
   "dependencies": {
     "ajv": "^8.20.0",
     "three": "^0.185.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "@types/three": "^0.185.1",
     "typescript": "5.8.3",
     "vite": "^6.4.3",

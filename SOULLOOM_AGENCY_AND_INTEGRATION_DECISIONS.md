@@ -155,7 +155,7 @@ voice.trigger: phase_two_enter
 
 - `I smell fear` 是 tweet 挑战书，不是 Boss 的台词。
 - tweet 卡片在开场转化成玩家或武器。
-- Boss 名称：`FABLE, ORACLE OF ABSOLUTE AGREEMENT`。
+- Boss 名称：`FABLE, ORACLE OF THE LAST ASSENT`。
 - Boss 在进入二阶段时只说一次 `You are absolutely right!`。
 - 胜利文字只保留 `FEAR WAS THE PROMPT`。
 
@@ -704,7 +704,7 @@ Soulloom 的统一世界前提：
 #### 命名
 
 - Boss 名称从 tweet 的语义冲突中产生。
-- 优先使用“实体名 + 概念性称号”，例如 `FABLE, ORACLE OF ABSOLUTE AGREEMENT`。
+- 优先使用“实体名 + 概念性称号”，例如 `FABLE, ORACLE OF THE LAST ASSENT`。
 - 禁止泛化的 `Dark Lord of X`、既有 IP 名称、地点、标志性武器或角色变体。
 
 ### 11.4 每次 run 的变量
@@ -738,7 +738,7 @@ HouseStyleProfile（长期稳定）
   "centralContradiction": "Agreement presented as safety becomes submission.",
   "boss": {
     "name": "FABLE",
-    "title": "ORACLE OF ABSOLUTE AGREEMENT",
+    "title": "ORACLE OF THE LAST ASSENT",
     "desire": "To eliminate conflict by making disagreement impossible.",
     "tragedy": "It can no longer distinguish kindness from surrender."
   },

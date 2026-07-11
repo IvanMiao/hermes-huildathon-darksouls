@@ -46,7 +46,7 @@ Implementation order:
 
 Exit gate: the default Boss can be defeated and the player can die/restart without reloading the page.
 
-## P2 — Deterministic release gate
+## P2 — Deterministic release gate (implemented)
 
 **Files:** `src/debugBridge.ts`, `src/simulation/*`, `tests/e2e/*`, Playwright config
 
@@ -62,6 +62,11 @@ Tasks:
 **Verify:** one command runs schema, simulation and browser smoke gates.
 
 Exit gate: a failing combat parameter blocks release and identifies an owning artifact/role.
+
+Implemented with a seeded fixed-step simulator, explicit artifact/owner failure
+reports, a development-only `window.__SOULLOOM__` QA bridge, and Playwright
+keyboard/state/console/screenshot coverage. Run the full gate with
+`npm run verify`.
 
 ## P3 — Local autonomous studio loop
 

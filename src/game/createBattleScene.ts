@@ -652,10 +652,60 @@ export function createBattleScene(spec: BossSpec, container: HTMLElement): () =>
 
   const clock = new THREE.Clock();
   let animationFrame = 0;
+  let visualElapsed = 0;
+  let introVisibleUntil = 2.35;
+  let paused = false;
+  let pendingStepSeconds = 0;
+  let debugRenderRequested = false;
+  let disposed = false;
+  let uninstallDebugBridge = (): void => undefined;
+
+  if (import.meta.env.DEV) {
+    void import("../debugBridge").then(({ installDebugBridge }) => {
+      if (disposed) {
+        return;
+      }
+
+      uninstallDebugBridge = installDebugBridge({
+        controller,
+        spec,
+        dispatch: (events) => handleEvents(events, ui, visuals, timers, spec),
+        getIntroVisible: () => visualElapsed <= introVisibleUntil,
+        showIntro: () => {
+          introVisibleUntil = visualElapsed + 2.35;
+        },
+        dismissIntro: () => {
+          introVisibleUntil = visualElapsed - 0.001;
+        },
+        getPaused: () => paused,
+        setPaused: (nextPaused) => {
+          paused = nextPaused;
+          pendingStepSeconds = 0;
+        },
+        step: (milliseconds) => {
+          if (Number.isFinite(milliseconds) && milliseconds > 0) {
+            paused = true;
+            pendingStepSeconds += Math.min(milliseconds / 1_000, 10);
+          }
+        },
+        requestRender: () => {
+          debugRenderRequested = true;
+        },
+      });
+    });
+  }
 
   function render(): void {
-    const delta = Math.min(clock.getDelta(), 0.05);
-    const elapsed = clock.elapsedTime;
+    const clockDelta = Math.min(clock.getDelta(), 0.05);
+    const delta = paused ? Math.min(pendingStepSeconds, 0.05) : clockDelta;
+    pendingStepSeconds = Math.max(0, pendingStepSeconds - delta);
+    if (paused && delta === 0 && !debugRenderRequested) {
+      animationFrame = window.requestAnimationFrame(render);
+      return;
+    }
+    debugRenderRequested = false;
+    visualElapsed += delta;
+    const elapsed = visualElapsed;
     const events = controller.update(delta, input.read());
     handleEvents(events, ui, visuals, timers, spec);
 
@@ -682,7 +732,7 @@ export function createBattleScene(spec: BossSpec, container: HTMLElement): () =>
     updateEffects(delta, elapsed, controller, visuals, ui, timers);
     updateHud(ui, controller);
 
-    const introComplete = elapsed > 2.35;
+    const introComplete = elapsed > introVisibleUntil;
     ui.intro.classList.toggle("is-hidden", introComplete);
     ui.root.classList.toggle("is-intro", !introComplete);
 
@@ -700,6 +750,8 @@ export function createBattleScene(spec: BossSpec, container: HTMLElement): () =>
   render();
 
   return () => {
+    disposed = true;
+    uninstallDebugBridge();
     window.cancelAnimationFrame(animationFrame);
     resizeObserver.disconnect();
     input.dispose();

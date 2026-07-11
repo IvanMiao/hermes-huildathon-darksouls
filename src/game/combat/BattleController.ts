@@ -12,6 +12,11 @@ export interface CombatInput {
   restartPressed: boolean;
 }
 
+export interface BattleControllerOptions {
+  /** Replays the same post-opening attack choices for the same seed. */
+  seed?: number;
+}
+
 export type CombatOutcome = "fighting" | "victory" | "defeat";
 export type AttackStage = "telegraph" | "active" | "recovery";
 
@@ -70,6 +75,7 @@ const DODGE_INVULNERABILITY = 0.29;
 const DODGE_COOLDOWN = 0.7;
 const DODGE_SPEED = 9.2;
 const CHARGE_SPEED = 9.6;
+const DEFAULT_COMBAT_SEED = 0x51_4c_4d;
 
 const NO_INPUT: CombatInput = {
   movement: { x: 0, z: 0 },
@@ -138,13 +144,21 @@ function createInitialState(spec: BossSpec): CombatState {
 
 export class BattleController {
   state: CombatState;
+  private randomState: number;
+  private lastAttackType: AttackType | null = null;
 
-  constructor(private readonly spec: BossSpec) {
+  constructor(
+    private readonly spec: BossSpec,
+    private readonly options: BattleControllerOptions = {},
+  ) {
     this.state = createInitialState(spec);
+    this.randomState = options.seed ?? DEFAULT_COMBAT_SEED;
   }
 
   reset(): CombatEvent[] {
     this.state = createInitialState(this.spec);
+    this.randomState = this.options.seed ?? DEFAULT_COMBAT_SEED;
+    this.lastAttackType = null;
     return [{ type: "restart" }];
   }
 
@@ -283,7 +297,7 @@ export class BattleController {
 
   private startBossAttack(events: CombatEvent[]): void {
     const boss = this.state.boss;
-    const attackSpec = this.spec.attacks[boss.attackIndex % this.spec.attacks.length];
+    const attackSpec = this.selectAttack();
     if (!attackSpec) {
       return;
     }
@@ -298,7 +312,33 @@ export class BattleController {
       target: { ...this.state.player.position },
       hasHit: false,
     };
+    this.lastAttackType = attackSpec.type;
     events.push({ type: "boss_attack_started", attack: attackSpec.type });
+  }
+
+  private selectAttack(): BossSpec["attacks"][number] | undefined {
+    const attackIndex = this.state.boss.attackIndex;
+
+    // Keep the first cycle fixed so every encounter teaches the same three verbs.
+    if (attackIndex < this.spec.attacks.length) {
+      return this.spec.attacks[attackIndex];
+    }
+
+    const candidates = this.spec.attacks.filter(
+      ({ type }) => type !== this.lastAttackType,
+    );
+    const pool = candidates.length > 0 ? candidates : this.spec.attacks;
+    return pool[Math.floor(this.nextRandom() * pool.length)];
+  }
+
+  private nextRandom(): number {
+    // Mulberry32 is small, deterministic across browsers, and sufficient for
+    // encounter ordering. It is deliberately not used for security decisions.
+    this.randomState = (this.randomState + 0x6d_2b_79_f5) >>> 0;
+    let value = this.randomState;
+    value = Math.imul(value ^ (value >>> 15), value | 1);
+    value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
+    return ((value ^ (value >>> 14)) >>> 0) / 4_294_967_296;
   }
 
   private updateActiveAttack(
