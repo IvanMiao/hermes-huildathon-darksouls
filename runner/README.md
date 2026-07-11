@@ -44,12 +44,22 @@ It cannot consolidate child artifacts before a scripted `hermes -z` process
 exits, so the live adapter intentionally uses direct parallel specialist calls.
 
 Hermes must already be installed and configured (`hermes setup --portal` or an
-equivalent provider setup). Optional live settings:
+equivalent provider setup). Live mode is fail-closed and requires an explicit
+provider and model:
 
 ```bash
 SOULLOOM_HERMES_TIMEOUT_MS=30000 npm run studio -- "I smell fear."
 SOULLOOM_HERMES_PROVIDER=openai-api SOULLOOM_HERMES_MODEL=gpt-5.6-terra npm run studio -- "I smell fear."
 ```
+
+Every specialist runs inside Bubblewrap with the user's home directory hidden.
+Only the read-only Hermes installation, Python runtime, and Hermes credential
+file are mounted back into the sandbox. The child receives an empty temporary
+working directory and cleared environment, while Hermes `--safe-mode` disables
+user rules, plugins, MCP servers, and memory. Its explicit `hermes-webhook`
+toolset contains no file, terminal, code-execution, or delegation tools. This
+Linux sandbox requires `/usr/bin/bwrap`; use `SOULLOOM_HERMES_SANDBOX_BIN` only
+when Bubblewrap is installed at another path.
 
 For deterministic offline development, use:
 

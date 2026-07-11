@@ -101,6 +101,10 @@ builds. The P3 orchestration core accepts specialist adapters; fixtures remain
 offline and reproducible, while `npm run studio -- "tweet text"` and the browser
 Studio invoke parallel schema-constrained Hermes Creative/Encounter specialists
 through the same Manager-owned artifact boundary.
+Live specialists run in a fail-closed Bubblewrap sandbox: the local home and
+project are hidden, the working directory is ephemeral, inherited environment
+variables are cleared, and Hermes file/terminal/code tools, plugins, MCP, rules,
+and memory are disabled.
 `npm run studio:local -- "tweet text"` retains the deterministic path, while
 `npm run studio:server` exposes the live workflow through an authenticated,
 asynchronous local API. Cloudflare Pages proxies `/api/*` to its protected

@@ -102,6 +102,12 @@ repair. Direct specialist calls are required because Hermes v0.18.2
 can consolidate child results. The original 8-second timeout remains the
 offline adapter default; real Hermes CLI runs use a separate 30-second process
 timeout. Both limits are explicit and failures remain labelled fallbacks.
+Live specialist processes are now fail-closed behind Bubblewrap. The user's
+home and project are hidden, only the read-only Hermes runtime and credential
+file are mounted, and each call receives an ephemeral working directory with a
+cleared environment. Hermes additionally runs in `--safe-mode` with the
+`hermes-webhook` toolset, which excludes file, terminal, code-execution, and
+delegation tools. An explicit provider and model are required.
 
 ## P4 — Minimal Studio and Control Room UI (implemented)
 
