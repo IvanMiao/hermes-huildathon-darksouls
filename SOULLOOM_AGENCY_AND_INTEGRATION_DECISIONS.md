@@ -4,6 +4,10 @@
 >
 > **We do not generate arbitrary game code. We operate an autonomous game studio.**
 
+> Update: `GAME_RECIPE_V0_PLAN.md` is now authoritative for the encounter
+> artifact. The workflow publishes a `GameRecipeV0` containing `BossSpec`, not a
+> standalone BossSpec.
+
 本文是对 `TWEET_TO_GAME_BUILDATHON_PLAN.md` 的收敛与技术补充。目标不是覆盖尽可能多的 sponsor 或功能，而是在八小时内做好两个高潮：
 
 1. Hermes Studio Manager 能审阅 specialist 的真实产物，阻止坏版本发布，并定向返工。
@@ -61,9 +65,9 @@ Tweet
   ↓
 Studio Manager → ProductionBrief
   ├── Creative Director → ThemeSpec
-  └── Encounter Designer → CombatSpec
+  └── Encounter Designer → EncounterSpec
   ↓
-Manager 合并 DraftBossSpec
+Manager 合并 DraftGameRecipeV0（内含 BossSpec）
   ↓
 Audio Producer → ElevenLabs voice.mp3
   ↓
@@ -76,7 +80,7 @@ Release QA → schema + balance + browser smoke tests
 
 - Creative 与 Encounter 可以并行。
 - Audio 必须等待台词和声线方向被批准。
-- QA 必须等待完整 `BossSpec`、音频和可访问的游戏页面。
+- QA 必须等待完整 `GameRecipeV0`、音频和可访问的游戏页面。
 - QA 失败后不能自己偷偷修改产物；它只提交结构化报告，由 Manager 决定返工对象。
 - 未通过 QA 的 run 保持 `release_blocked`，不能获得公开游戏 URL。
 
@@ -86,7 +90,7 @@ Release QA → schema + balance + browser smoke tests
 |---|---|---|
 | Manager | tweet | `ProductionBrief.json` |
 | Creative | brief | `ThemeSpec.json` |
-| Encounter | brief | `CombatSpec.json` |
+| Encounter | brief | `EncounterSpec.json` |
 | Audio | approved voice direction | `voice.mp3` + generation metadata |
 | QA | merged spec + runtime URL | `QAReport.json` |
 | Publisher | passed report | published run state |
@@ -724,7 +728,7 @@ House Style 长期稳定；每条 tweet 只决定：
 HouseStyleProfile（长期稳定）
 + ProductionBrief（本条 tweet）
 + Specialist Schema（结构约束）
-= ThemeSpec / CombatSpec / AudioSpec
+= ThemeSpec / EncounterSpec / AudioSpec
 ```
 
 不要把所有规则写进一个不断增长的 mega prompt。`HouseStyleProfile`、本次 brief 和 specialist 输出契约应分别版本化，便于 eval、对比和回滚。

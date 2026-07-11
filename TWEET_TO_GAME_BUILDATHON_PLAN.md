@@ -4,6 +4,10 @@
 >
 > **We don’t generate game code. We operate an autonomous game studio.**
 
+> Update: `GAME_RECIPE_V0_PLAN.md` supersedes the BossSpec-only encounter
+> assembly described below. `BossSpec` remains the nested narrative/balance
+> contract inside the published `GameRecipeV0`.
+
 ## 1. 项目定位
 
 Soulloom 不是一个普通的“AI 生成小游戏”工具，而是一间由 Hermes 驱动的微型自主游戏工作室。
@@ -591,7 +595,7 @@ I smell fear.
 ```text
 0:00  粘贴 “I smell fear”
 0:10  Manager 分解任务，选择 specialists
-0:25  展示 ThemeSpec、CombatSpec、VoiceSpec
+0:25  展示 ThemeSpec、EncounterSpec、VoiceSpec
 0:40  QA 找到真实问题并拒绝当前版本
 0:55  Manager 定向返工，Regression passed
 1:05  点击 Play

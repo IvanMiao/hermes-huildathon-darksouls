@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_BOSS_SPEC } from "../../boss-spec/defaultBossSpec";
-import { BattleController, type CombatInput } from "./BattleController";
+import { DEFAULT_GAME_RECIPE } from "../../game-recipe/defaultGameRecipe";
+import type { GameRecipeV0 } from "../../game-recipe/types";
+import {
+  BattleController,
+  doesNovaHit,
+  PROCESSION_MINIMUM_RADIUS,
+  type CombatInput,
+} from "./BattleController";
 
 const idleInput: CombatInput = {
   movement: { x: 0, z: 0 },
@@ -15,9 +21,44 @@ function advance(controller: BattleController, seconds: number, input = idleInpu
   }
 }
 
-function collectAttackOrder(seed: number, count: number): string[] {
-  const controller = new BattleController(DEFAULT_BOSS_SPEC, { seed });
+function createProcessionRecipe(): GameRecipeV0 {
+  return {
+    ...structuredClone(DEFAULT_GAME_RECIPE),
+    runId: "test-procession",
+    archetype: "procession",
+    arena: { rule: "closing_ring", theme: "ruined-cathedral" },
+    combat: {
+      phaseOneOrder: ["sweep", "charge", "nova"],
+      phaseTwoOrder: ["charge", "charge", "sweep", "nova"],
+      phaseTwoRule: "charge_chain",
+    },
+  };
+}
+
+function createRevelationRecipe(): GameRecipeV0 {
+  return {
+    ...structuredClone(DEFAULT_GAME_RECIPE),
+    runId: "test-revelation",
+    archetype: "revelation",
+    arena: { rule: "inner_sanctuary", theme: "void-sanctum" },
+    combat: {
+      phaseOneOrder: ["sweep", "charge", "nova"],
+      phaseTwoOrder: ["nova", "sweep", "charge"],
+      phaseTwoRule: "outer_safe_nova",
+    },
+  };
+}
+
+function collectAttackOrder(
+  recipe: GameRecipeV0,
+  count: number,
+  phase: 1 | 2 = 1,
+): string[] {
+  const controller = new BattleController(recipe);
   controller.state.player.hp = 1_000_000;
+  controller.state.phase = phase;
+  controller.state.phaseTransitionRemaining = 0;
+  controller.state.boss.nextAttackRemaining = 0;
   const attacks: string[] = [];
 
   for (let elapsed = 0; elapsed < 45 && attacks.length < count; elapsed += 0.016) {
@@ -34,7 +75,7 @@ function collectAttackOrder(seed: number, count: number): string[] {
 
 describe("BattleController", () => {
   it("moves the player but keeps them inside the arena", () => {
-    const controller = new BattleController(DEFAULT_BOSS_SPEC);
+    const controller = new BattleController(DEFAULT_GAME_RECIPE);
 
     advance(controller, 5, { ...idleInput, movement: { x: 1, z: 1 } });
 
@@ -43,24 +84,24 @@ describe("BattleController", () => {
   });
 
   it("only damages the boss when a strike is in range", () => {
-    const controller = new BattleController(DEFAULT_BOSS_SPEC);
+    const controller = new BattleController(DEFAULT_GAME_RECIPE);
 
     const missed = controller.update(0.016, { ...idleInput, attackPressed: true });
     expect(missed).toContainEqual({ type: "player_strike", connected: false });
-    expect(controller.state.boss.hp).toBe(DEFAULT_BOSS_SPEC.boss.maxHp);
+    expect(controller.state.boss.hp).toBe(DEFAULT_GAME_RECIPE.boss.boss.maxHp);
 
     controller.state.player.position = { x: 0, z: -0.3 };
     advance(controller, 0.5);
     const hit = controller.update(0.016, { ...idleInput, attackPressed: true });
 
     expect(hit).toContainEqual({ type: "player_strike", connected: true });
-    expect(controller.state.boss.hp).toBeLessThan(DEFAULT_BOSS_SPEC.boss.maxHp);
+    expect(controller.state.boss.hp).toBeLessThan(DEFAULT_GAME_RECIPE.boss.boss.maxHp);
   });
 
   it("enters phase two exactly once when health crosses the threshold", () => {
-    const controller = new BattleController(DEFAULT_BOSS_SPEC);
+    const controller = new BattleController(DEFAULT_GAME_RECIPE);
     controller.state.player.position = { x: 0, z: -0.3 };
-    controller.state.boss.hp = DEFAULT_BOSS_SPEC.boss.maxHp / 2 + 1;
+    controller.state.boss.hp = DEFAULT_GAME_RECIPE.boss.boss.maxHp / 2 + 1;
 
     const transition = controller.update(0.016, { ...idleInput, attackPressed: true });
     expect(transition.filter(({ type }) => type === "phase_two")).toHaveLength(1);
@@ -72,7 +113,7 @@ describe("BattleController", () => {
   });
 
   it("grants invulnerability during a dodge", () => {
-    const controller = new BattleController(DEFAULT_BOSS_SPEC);
+    const controller = new BattleController(DEFAULT_GAME_RECIPE);
 
     controller.update(0.016, { ...idleInput, dodgePressed: true });
 
@@ -81,7 +122,7 @@ describe("BattleController", () => {
   });
 
   it("can restart after victory", () => {
-    const controller = new BattleController(DEFAULT_BOSS_SPEC);
+    const controller = new BattleController(DEFAULT_GAME_RECIPE);
     controller.state.player.position = { x: 0, z: -0.3 };
     controller.state.boss.hp = 1;
 
@@ -91,15 +132,48 @@ describe("BattleController", () => {
     const restart = controller.update(0.016, { ...idleInput, restartPressed: true });
     expect(restart).toEqual([{ type: "restart" }]);
     expect(controller.state.outcome).toBe("fighting");
-    expect(controller.state.boss.hp).toBe(DEFAULT_BOSS_SPEC.boss.maxHp);
+    expect(controller.state.boss.hp).toBe(DEFAULT_GAME_RECIPE.boss.boss.maxHp);
   });
 
-  it("keeps the teaching cycle fixed and replays later attacks from a seed", () => {
-    const firstRun = collectAttackOrder(867_5309, 8);
-    const replay = collectAttackOrder(867_5309, 8);
+  it("follows the recipe attack order deterministically", () => {
+    const firstRun = collectAttackOrder(DEFAULT_GAME_RECIPE, 8);
+    const replay = collectAttackOrder(DEFAULT_GAME_RECIPE, 8);
 
     expect(firstRun.slice(0, 3)).toEqual(["sweep", "charge", "nova"]);
     expect(firstRun).toHaveLength(8);
     expect(replay).toEqual(firstRun);
+  });
+
+  it("shrinks Procession after phase two and executes a charge chain", () => {
+    const recipe = createProcessionRecipe();
+    const controller = new BattleController(recipe);
+    controller.state.phase = 2;
+    controller.state.phaseTransitionRemaining = 0;
+    controller.state.player.hp = 1_000_000;
+    const radii: number[] = [];
+
+    for (let elapsed = 0; elapsed < 24; elapsed += 0.5) {
+      advance(controller, 0.5);
+      radii.push(controller.state.arena.radius);
+    }
+
+    expect(radii.every((radius, index) => index === 0 || radius <= (radii[index - 1] ?? radius)))
+      .toBe(true);
+    expect(controller.state.arena.radius).toBeCloseTo(PROCESSION_MINIMUM_RADIUS, 2);
+    expect(collectAttackOrder(recipe, 4, 2)).toEqual([
+      "charge",
+      "charge",
+      "sweep",
+      "nova",
+    ]);
+  });
+
+  it("reverses Revelation nova safety from inner sanctuary to outer ring", () => {
+    const recipe = createRevelationRecipe();
+
+    expect(doesNovaHit(recipe, 1, 1.5)).toBe(false);
+    expect(doesNovaHit(recipe, 1, 3.2)).toBe(true);
+    expect(doesNovaHit(recipe, 2, 1.5)).toBe(true);
+    expect(doesNovaHit(recipe, 2, 4.4)).toBe(false);
   });
 });

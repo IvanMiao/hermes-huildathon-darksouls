@@ -1,7 +1,10 @@
-import { isBossSpec } from "../boss-spec/normalize";
-import type { BossSpec, VoiceTrigger } from "../boss-spec/types";
+import type { VoiceTrigger } from "../boss-spec/types";
+import { isGameRecipeV0 } from "../game-recipe/normalize";
+import type { GameRecipeV0 } from "../game-recipe/types";
 import {
   BattleController,
+  doesNovaHit,
+  PROCESSION_MINIMUM_RADIUS,
   type CombatEvent,
   type CombatInput,
   type Vec2,
@@ -14,13 +17,14 @@ export type ReleaseGateOwner =
 
 export interface ReleaseGateCheck {
   id:
-    | "legal_spec"
+    | "legal_recipe"
     | "phase_two_reachable"
     | "boss_defeatable"
     | "death_restart"
-    | "voice_trigger_reachable";
+    | "voice_trigger_reachable"
+    | "package_rule_active";
   passed: boolean;
-  artifact: "DraftBossSpec" | "CombatSpec" | "VoiceArtifact";
+  artifact: "DraftGameRecipe" | "EncounterSpec" | "VoiceArtifact";
   owner: ReleaseGateOwner;
   message: string;
 }
@@ -84,10 +88,11 @@ function createAutoplayerInput(controller: BattleController): CombatInput {
 }
 
 function simulateVictory(
-  spec: BossSpec,
+  recipe: GameRecipeV0,
   seed: number,
 ): { seconds: number; events: CombatEvent[]; controller: BattleController } {
-  const controller = new BattleController(spec, { seed });
+  void seed;
+  const controller = new BattleController(recipe);
   const events: CombatEvent[] = [];
   let seconds = 0;
 
@@ -99,8 +104,9 @@ function simulateVictory(
   return { seconds, events, controller };
 }
 
-function simulateDeathAndRestart(spec: BossSpec, seed: number): boolean {
-  const controller = new BattleController(spec, { seed });
+function simulateDeathAndRestart(recipe: GameRecipeV0, seed: number): boolean {
+  void seed;
+  const controller = new BattleController(recipe);
   controller.state.player.position = { x: 0, z: -0.2 };
   controller.state.player.hp = 1;
   controller.state.boss.nextAttackRemaining = 0;
@@ -135,20 +141,85 @@ function voiceTriggerWasReached(
   return eventTypes.has("phase_two") || eventTypes.has("victory");
 }
 
-function failedLegalSpecReport(seed: number): ReleaseGateReport {
+function verifyPackageRule(recipe: GameRecipeV0): { passed: boolean; message: string } {
+  if (recipe.archetype === "duel") {
+    const phaseOne = new BattleController(recipe);
+    phaseOne.state.boss.nextAttackRemaining = 0;
+    phaseOne.update(FIXED_STEP, idleInput);
+    const phaseOneTelegraph = phaseOne.state.boss.attack?.duration ?? 0;
+
+    const phaseTwo = new BattleController(recipe);
+    phaseTwo.state.phase = 2;
+    phaseTwo.state.boss.nextAttackRemaining = 0;
+    phaseTwo.update(FIXED_STEP, idleInput);
+    const phaseTwoTelegraph = phaseTwo.state.boss.attack?.duration ?? 0;
+    const passed = phaseTwoTelegraph > 0 && phaseTwoTelegraph < phaseOneTelegraph;
+    return {
+      passed,
+      message: passed
+        ? "Duel haste shortened the phase-two telegraph."
+        : "Duel haste did not shorten the phase-two telegraph.",
+    };
+  }
+
+  if (recipe.archetype === "procession") {
+    const controller = new BattleController(recipe);
+    controller.state.phase = 2;
+    controller.state.player.hp = 1_000_000;
+    controller.state.boss.nextAttackRemaining = 0;
+    const attacks: string[] = [];
+    let monotonic = true;
+    let previousRadius = controller.state.arena.radius;
+    for (let elapsed = 0; elapsed < 24; elapsed += FIXED_STEP) {
+      const events = controller.update(FIXED_STEP, idleInput);
+      attacks.push(...events
+        .filter(({ type }) => type === "boss_attack_started")
+        .map((event) => event.type === "boss_attack_started" ? event.attack : ""));
+      monotonic &&= controller.state.arena.radius <= previousRadius + 0.000_001;
+      previousRadius = controller.state.arena.radius;
+    }
+    const hasChargeChain = attacks.some(
+      (attack, index) => attack === "charge" && attacks[index + 1] === "charge",
+    );
+    const reachedMinimum = Math.abs(
+      controller.state.arena.radius - PROCESSION_MINIMUM_RADIUS,
+    ) < 0.01;
+    const passed = monotonic && reachedMinimum && hasChargeChain;
+    return {
+      passed,
+      message: passed
+        ? "Procession radius shrank monotonically to its safe floor and executed a charge chain."
+        : "Procession did not prove both safe arena shrink and a charge chain.",
+    };
+  }
+
+  const semanticsReversed = !doesNovaHit(recipe, 1, 1.5)
+    && doesNovaHit(recipe, 1, 3.2)
+    && doesNovaHit(recipe, 2, 1.5)
+    && !doesNovaHit(recipe, 2, 4.4);
+  return {
+    passed: semanticsReversed,
+    message: semanticsReversed
+      ? "Revelation nova changed from an inner sanctuary to an outer safe ring."
+      : "Revelation nova safety semantics did not reverse across phases.",
+  };
+}
+
+function failedLegalRecipeReport(seed: number): ReleaseGateReport {
   const checks: ReleaseGateCheck[] = [
     {
-      id: "legal_spec",
+      id: "legal_recipe",
       passed: false,
-      artifact: "DraftBossSpec",
+      artifact: "DraftGameRecipe",
       owner: "Studio Manager",
-      message: "Canonical BossSpec schema rejected the release candidate.",
+      message: "Canonical GameRecipeV0 schema rejected the release candidate.",
     },
     ...([
-      ["phase_two_reachable", "CombatSpec", "Encounter Designer"],
-      ["boss_defeatable", "CombatSpec", "Encounter Designer"],
-      ["death_restart", "CombatSpec", "Encounter Designer"],
+      ["phase_two_reachable", "EncounterSpec", "Encounter Designer"],
+      ["boss_defeatable", "EncounterSpec", "Encounter Designer"],
+      ["death_restart", "EncounterSpec", "Encounter Designer"],
       ["voice_trigger_reachable", "VoiceArtifact", "Audio Producer"],
+      ["package_rule_active", "EncounterSpec", "Encounter Designer"],
     ] as const).map(([id, artifact, owner]) => ({
       id,
       passed: false,
@@ -162,28 +233,29 @@ function failedLegalSpecReport(seed: number): ReleaseGateReport {
 
 /** Runs the deterministic, headless release checks against the real combat state machine. */
 export function runReleaseGate(input: unknown, seed = 0x51_4c_4d): ReleaseGateReport {
-  if (!isBossSpec(input)) {
-    return failedLegalSpecReport(seed);
+  if (!isGameRecipeV0(input)) {
+    return failedLegalRecipeReport(seed);
   }
 
   const victoryRun = simulateVictory(input, seed);
   const reachedPhaseTwo = victoryRun.events.some(({ type }) => type === "phase_two");
   const defeatedBoss = victoryRun.controller.state.outcome === "victory";
   const deathRestartPassed = simulateDeathAndRestart(input, seed);
-  const voiceReached = voiceTriggerWasReached(input.voice.trigger, victoryRun.events);
+  const voiceReached = voiceTriggerWasReached(input.boss.voice.trigger, victoryRun.events);
+  const packageRule = verifyPackageRule(input);
 
   const checks: ReleaseGateCheck[] = [
     {
-      id: "legal_spec",
+      id: "legal_recipe",
       passed: true,
-      artifact: "DraftBossSpec",
+      artifact: "DraftGameRecipe",
       owner: "Studio Manager",
-      message: "Canonical BossSpec schema passed.",
+      message: "Canonical GameRecipeV0 schema passed.",
     },
     {
       id: "phase_two_reachable",
       passed: reachedPhaseTwo,
-      artifact: "CombatSpec",
+      artifact: "EncounterSpec",
       owner: "Encounter Designer",
       message: reachedPhaseTwo
         ? "Autoplayer crossed the phase-two threshold exactly through combat damage."
@@ -192,7 +264,7 @@ export function runReleaseGate(input: unknown, seed = 0x51_4c_4d): ReleaseGateRe
     {
       id: "boss_defeatable",
       passed: defeatedBoss,
-      artifact: "CombatSpec",
+      artifact: "EncounterSpec",
       owner: "Encounter Designer",
       message: defeatedBoss
         ? `Autoplayer defeated the boss in ${victoryRun.seconds.toFixed(2)}s.`
@@ -201,7 +273,7 @@ export function runReleaseGate(input: unknown, seed = 0x51_4c_4d): ReleaseGateRe
     {
       id: "death_restart",
       passed: deathRestartPassed,
-      artifact: "CombatSpec",
+      artifact: "EncounterSpec",
       owner: "Encounter Designer",
       message: deathRestartPassed
         ? "A lethal hit reached defeat and restart restored the initial fight."
@@ -213,8 +285,15 @@ export function runReleaseGate(input: unknown, seed = 0x51_4c_4d): ReleaseGateRe
       artifact: "VoiceArtifact",
       owner: "Audio Producer",
       message: voiceReached
-        ? `Configured voice trigger '${input.voice.trigger}' was reached.`
-        : `Configured voice trigger '${input.voice.trigger}' was not reached.`,
+        ? `Configured voice trigger '${input.boss.voice.trigger}' was reached.`
+        : `Configured voice trigger '${input.boss.voice.trigger}' was not reached.`,
+    },
+    {
+      id: "package_rule_active",
+      passed: packageRule.passed,
+      artifact: "EncounterSpec",
+      owner: "Encounter Designer",
+      message: packageRule.message,
     },
   ];
 

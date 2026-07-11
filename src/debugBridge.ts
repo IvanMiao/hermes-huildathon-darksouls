@@ -89,6 +89,7 @@ function triggerPhaseTwo(adapter: DebugRuntimeAdapter): void {
   );
   state.boss.attack = null;
   state.boss.nextAttackRemaining = 0.75;
+  state.boss.attackIndex = 0;
   state.phaseTransitionRemaining = 1.15;
   adapter.dispatch([{ type: "phase_two" }]);
 }

@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import type { BossSpec } from "../boss-spec/types";
+import type { GameRecipeV0 } from "../game-recipe/types";
 import {
   BattleController,
   DODGE_DURATION,
@@ -50,6 +51,8 @@ interface CombatVisuals {
   sweep: THREE.Mesh;
   charge: THREE.Mesh;
   nova: THREE.Mesh;
+  novaCore: THREE.Mesh;
+  arenaBoundary: THREE.Mesh;
   emberField: THREE.Points;
   candleFlames: THREE.Group;
 }
@@ -165,7 +168,10 @@ function createInterface(container: HTMLElement, spec: BossSpec): BattleUi {
   };
 }
 
-function createTelegraphs(spec: BossSpec): Pick<CombatVisuals, "sweep" | "charge" | "nova" | "slash"> {
+function createTelegraphs(
+  recipe: GameRecipeV0,
+): Pick<CombatVisuals, "sweep" | "charge" | "nova" | "novaCore" | "slash"> {
+  const spec = recipe.boss;
   const ember = spec.boss.palette[1];
   const warningMaterial = new THREE.MeshBasicMaterial({
     color: ember,
@@ -179,9 +185,19 @@ function createTelegraphs(spec: BossSpec): Pick<CombatVisuals, "sweep" | "charge
   sweep.rotation.x = -Math.PI / 2;
   sweep.position.y = 0.055;
 
-  const nova = new THREE.Mesh(new THREE.RingGeometry(3.25, 3.68, 96), warningMaterial.clone());
+  const novaGeometry = recipe.archetype === "revelation"
+    ? new THREE.RingGeometry(2.55, 4.65, 96)
+    : new THREE.RingGeometry(3.25, 3.68, 96);
+  const nova = new THREE.Mesh(novaGeometry, warningMaterial.clone());
   nova.rotation.x = -Math.PI / 2;
   nova.position.y = 0.06;
+
+  const novaCore = new THREE.Mesh(
+    new THREE.CircleGeometry(3.65, 96),
+    warningMaterial.clone(),
+  );
+  novaCore.rotation.x = -Math.PI / 2;
+  novaCore.position.y = 0.058;
 
   const charge = new THREE.Mesh(new THREE.PlaneGeometry(1.15, 11), warningMaterial.clone());
   charge.rotation.x = -Math.PI / 2;
@@ -202,15 +218,30 @@ function createTelegraphs(spec: BossSpec): Pick<CombatVisuals, "sweep" | "charge
   sweep.visible = false;
   charge.visible = false;
   nova.visible = false;
+  novaCore.visible = false;
   slash.visible = false;
-  return { sweep, charge, nova, slash };
+  return { sweep, charge, nova, novaCore, slash };
 }
 
-function createVisuals(scene: THREE.Scene, spec: BossSpec): CombatVisuals {
+function createVisuals(scene: THREE.Scene, recipe: GameRecipeV0): CombatVisuals {
+  const spec = recipe.boss;
   const arena = createArenaModel(spec);
   const boss = createBossModel(spec);
   const player = createPlayerModel();
-  const telegraphs = createTelegraphs(spec);
+  const telegraphs = createTelegraphs(recipe);
+  const arenaBoundary = new THREE.Mesh(
+    new THREE.RingGeometry(0.97, 1, 128),
+    new THREE.MeshBasicMaterial({
+      color: spec.boss.palette[2],
+      transparent: true,
+      opacity: recipe.arena.rule === "closing_ring" ? 0.34 : 0.18,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    }),
+  );
+  arenaBoundary.rotation.x = -Math.PI / 2;
+  arenaBoundary.position.y = 0.07;
+  arenaBoundary.visible = recipe.arena.rule !== "open_ring";
 
   scene.add(
     arena.group,
@@ -219,7 +250,9 @@ function createVisuals(scene: THREE.Scene, spec: BossSpec): CombatVisuals {
     telegraphs.sweep,
     telegraphs.charge,
     telegraphs.nova,
+    telegraphs.novaCore,
     telegraphs.slash,
+    arenaBoundary,
   );
 
   return {
@@ -235,6 +268,7 @@ function createVisuals(scene: THREE.Scene, spec: BossSpec): CombatVisuals {
     rollTrail: player.rollTrail,
     bossBodyMaterial: boss.bodyMaterial,
     playerMaterial: player.armorMaterial,
+    arenaBoundary,
     emberField: arena.emberField,
     candleFlames: arena.candleFlames,
     ...telegraphs,
@@ -251,10 +285,15 @@ function setMaterialOpacity(mesh: THREE.Mesh, opacity: number): void {
 function updateAttackTelegraph(
   visuals: CombatVisuals,
   attack: BossAttackState | null,
+  phase: 1 | 2,
+  recipe: GameRecipeV0,
 ): void {
   visuals.sweep.visible = attack?.type === "sweep" && attack.stage !== "recovery";
   visuals.charge.visible = attack?.type === "charge" && attack.stage !== "recovery";
-  visuals.nova.visible = attack?.type === "nova" && attack.stage !== "recovery";
+  const novaVisible = attack?.type === "nova" && attack.stage !== "recovery";
+  const revelationCore = recipe.archetype === "revelation" && phase === 2;
+  visuals.nova.visible = Boolean(novaVisible && !revelationCore);
+  visuals.novaCore.visible = Boolean(novaVisible && revelationCore);
 
   if (!attack || attack.stage === "recovery") {
     return;
@@ -270,9 +309,10 @@ function updateAttackTelegraph(
     visuals.sweep.scale.setScalar(pulse);
     setMaterialOpacity(visuals.sweep, opacity);
   } else if (attack.type === "nova") {
-    visuals.nova.position.set(bossPosition.x, 0.06, bossPosition.z);
-    visuals.nova.scale.setScalar(attack.stage === "active" ? 1 : 0.25 + progress * 0.75);
-    setMaterialOpacity(visuals.nova, opacity);
+    const novaVisual = revelationCore ? visuals.novaCore : visuals.nova;
+    novaVisual.position.set(bossPosition.x, 0.06, bossPosition.z);
+    novaVisual.scale.setScalar(attack.stage === "active" ? 1 : 0.25 + progress * 0.75);
+    setMaterialOpacity(novaVisual, opacity);
   } else {
     const dx = attack.target.x - bossPosition.x;
     const dz = attack.target.z - bossPosition.z;
@@ -420,6 +460,7 @@ function handleEvents(
   visuals: CombatVisuals,
   timers: EffectTimers,
   spec: BossSpec,
+  recipe?: GameRecipeV0,
 ): void {
   for (const event of events) {
     if (event.type === "player_strike") {
@@ -434,7 +475,12 @@ function handleEvents(
     } else if (event.type === "phase_two") {
       timers.eventCallout = 1.8;
       timers.cameraShake = 0.38;
-      ui.eventCallout.textContent = spec.boss.lines.phaseTwo;
+      const ruleCallout = recipe?.archetype === "procession"
+        ? " THE RING CLOSES. PROCESSION DOUBLES."
+        : recipe?.archetype === "revelation"
+          ? " THE CENTER CONDEMNS. SEEK THE OUTER RING."
+          : "";
+      ui.eventCallout.textContent = `${spec.boss.lines.phaseTwo}${ruleCallout}`;
       ui.eventCallout.classList.add("is-visible", "is-phase");
       visuals.bossBodyMaterial.emissiveIntensity = 0.48;
     } else if (event.type === "victory" || event.type === "defeat") {
@@ -583,7 +629,8 @@ function disposeScene(scene: THREE.Scene): void {
   });
 }
 
-export function createBattleScene(spec: BossSpec, container: HTMLElement): () => void {
+export function createBattleScene(recipe: GameRecipeV0, container: HTMLElement): () => void {
+  const spec = recipe.boss;
   const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -598,7 +645,11 @@ export function createBattleScene(spec: BossSpec, container: HTMLElement): () =>
   scene.fog = new THREE.FogExp2(spec.arena.fog, 0.062);
 
   const camera = new THREE.PerspectiveCamera(44, 16 / 9, 0.1, 70);
-  const cameraBase = new THREE.Vector3(0, 8.35, 10.1);
+  const cameraBase = recipe.presentation.cameraMood === "watchful"
+    ? new THREE.Vector3(0, 8.7, 10.8)
+    : recipe.presentation.cameraMood === "ceremonial"
+      ? new THREE.Vector3(0, 9.05, 9.55)
+      : new THREE.Vector3(0, 8.35, 10.1);
   camera.position.copy(cameraBase);
   camera.lookAt(0, 0.75, 0);
 
@@ -617,9 +668,11 @@ export function createBattleScene(spec: BossSpec, container: HTMLElement): () =>
   emberLight.position.set(0, 1.2, -2.5);
   scene.add(emberLight);
 
-  const controller = new BattleController(spec);
-  const visuals = createVisuals(scene, spec);
+  const controller = new BattleController(recipe);
+  const visuals = createVisuals(scene, recipe);
   const ui = createInterface(container, spec);
+  ui.root.dataset.archetype = recipe.archetype;
+  ui.root.dataset.arenaRule = recipe.arena.rule;
   const input = createInput(container);
   const timers: EffectTimers = {
     slash: 0,
@@ -669,7 +722,7 @@ export function createBattleScene(spec: BossSpec, container: HTMLElement): () =>
       uninstallDebugBridge = installDebugBridge({
         controller,
         spec,
-        dispatch: (events) => handleEvents(events, ui, visuals, timers, spec),
+        dispatch: (events) => handleEvents(events, ui, visuals, timers, spec, recipe),
         getIntroVisible: () => visualElapsed <= introVisibleUntil,
         showIntro: () => {
           introVisibleUntil = visualElapsed + 2.35;
@@ -707,7 +760,7 @@ export function createBattleScene(spec: BossSpec, container: HTMLElement): () =>
     visualElapsed += delta;
     const elapsed = visualElapsed;
     const events = controller.update(delta, input.read());
-    handleEvents(events, ui, visuals, timers, spec);
+    handleEvents(events, ui, visuals, timers, spec, recipe);
 
     const { player, boss, outcome } = controller.state;
     visuals.player.position.set(player.position.x, 0, player.position.z);
@@ -725,7 +778,17 @@ export function createBattleScene(spec: BossSpec, container: HTMLElement): () =>
     visuals.boss.visible = outcome !== "victory";
     visuals.player.visible = outcome !== "defeat";
 
-    updateAttackTelegraph(visuals, boss.attack);
+    visuals.arenaBoundary.scale.setScalar(
+      recipe.arena.rule === "inner_sanctuary"
+        ? 3.65
+        : controller.state.arena.radius,
+    );
+    updateAttackTelegraph(
+      visuals,
+      boss.attack,
+      controller.state.phase,
+      recipe,
+    );
     updatePlayerAnimation(visuals, controller, timers, elapsed, reducedMotion);
     updateBossAnimation(visuals, boss.attack, elapsed, controller.state.phase, reducedMotion);
     updateEnvironmentAnimation(visuals, elapsed, reducedMotion);
