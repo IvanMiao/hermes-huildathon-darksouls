@@ -1,5 +1,6 @@
-import { chooseFixtureForInput, STUDIO_RUN_FIXTURES } from "./fixtures";
+import { STUDIO_RUN_FIXTURES } from "./fixtures";
 import { createPageShell, getShellMain } from "./pageShell";
+import { startStudioRun } from "./studioApi";
 
 const ACCEPTED_TWEET_IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
 
@@ -69,7 +70,7 @@ export function mountStudioPage(root: HTMLElement): void {
       </figure>
     </div>
     <div class="form-footer">
-      <p id="source-help">Fixture replay is local and deterministic. No model call will be made.</p>
+      <p id="source-help">Text starts a live Manager with parallel Hermes specialists. Screenshot mode replays local evidence until OCR is connected.</p>
       <button class="primary-button" type="submit">
         <span>MAKE IT PLAYABLE</span>
         <svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20"><path d="m8 5 8 7-8 7V5Z" fill="currentColor"/></svg>
@@ -86,6 +87,8 @@ export function mountStudioPage(root: HTMLElement): void {
   const previewImage = requireElement(imagePreview.querySelector<HTMLImageElement>("img"), "preview image");
   const previewCaption = requireElement(imagePreview.querySelector<HTMLElement>("figcaption"), "preview caption");
   const error = requireElement(form.querySelector<HTMLElement>("#source-error"), "error message");
+  const submitButton = requireElement(form.querySelector<HTMLButtonElement>('button[type="submit"]'), "submit button");
+  const submitLabel = requireElement(submitButton.querySelector<HTMLElement>("span"), "submit label");
   let selectedImage: File | null = null;
   let previewUrl: string | null = null;
 
@@ -142,7 +145,7 @@ export function mountStudioPage(root: HTMLElement): void {
     imagePreview.hidden = false;
   });
 
-  form.addEventListener("submit", (submitEvent) => {
+  form.addEventListener("submit", async (submitEvent) => {
     submitEvent.preventDefault();
     clearError();
     const mode = selectedMode();
@@ -159,12 +162,32 @@ export function mountStudioPage(root: HTMLElement): void {
       imageInput.focus();
       return;
     }
-    const fixture = mode === "text"
-      ? chooseFixtureForInput(inputText)
-      : STUDIO_RUN_FIXTURES[0];
-    if (!fixture) throw new Error("Missing local Studio fixture.");
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
-    window.location.assign(`/control-room/${fixture.runId}?replay=1&source=${mode}`);
+    if (mode === "image") {
+      const fixture = STUDIO_RUN_FIXTURES[0];
+      if (!fixture) throw new Error("Missing local Studio fixture.");
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      window.location.assign(`/control-room/${fixture.runId}?replay=1&source=image`);
+      return;
+    }
+
+    submitButton.disabled = true;
+    submitLabel.textContent = "STARTING HERMES…";
+    try {
+      const result = await startStudioRun(inputText, {
+        onStateChange: (state) => {
+          submitLabel.textContent = state === "queued"
+            ? "RUN QUEUED…"
+            : "HERMES IS PRODUCING…";
+        },
+      });
+      window.location.assign(result.gameUrl ?? result.controlRoomUrl);
+    } catch (requestError) {
+      error.textContent = requestError instanceof Error
+        ? requestError.message
+        : "The Hermes runner is unavailable.";
+      submitButton.disabled = false;
+      submitLabel.textContent = "MAKE IT PLAYABLE";
+    }
   });
   hero.append(form);
 
