@@ -102,3 +102,77 @@ npx wrangler pages dev dist
 7. `/games/:runId` loads the generated ElevenLabs voice from Convex storage.
 8. Stop the local runner: historical game URLs must remain playable while new
    production requests fail clearly.
+
+## 6. Runner token rotation and restart runbook
+
+The runner and Pages Function must use the same secret under two different
+names:
+
+```text
+local .env.local:                 SOULLOOM_RUNNER_API_TOKEN
+Cloudflare Pages Production:     STUDIO_RUNNER_API_TOKEN
+```
+
+Treat `.env.local` as the source of truth. Restart the runner without inheriting
+an older shell value:
+
+```bash
+env -u SOULLOOM_RUNNER_API_TOKEN npm run studio:server
+```
+
+Whenever the local token changes, or a restarted runner starts returning 401,
+copy the current value to the Pages Production secret without printing it:
+
+```bash
+env -u SOULLOOM_RUNNER_API_TOKEN node --env-file=.env.local -e '
+const token = process.env.SOULLOOM_RUNNER_API_TOKEN;
+if (!token) throw new Error("SOULLOOM_RUNNER_API_TOKEN is missing");
+process.stdout.write(token);
+' | npx wrangler pages secret put STUDIO_RUNNER_API_TOKEN \
+  --project-name soulloom-buildathon
+```
+
+Pages secret changes require a new Production deployment. Build only from the
+intended, reviewed worktree, then deploy the current production branch:
+
+```bash
+git status --short
+npm run build
+npx wrangler pages deploy dist \
+  --project-name soulloom-buildathon \
+  --branch "$(git branch --show-current)" \
+  --commit-hash "$(git rev-parse HEAD)"
+```
+
+Do not paste either token into `VITE_*`, command arguments, logs, issues, or
+committed files. `wrangler pages secret list` confirms that the binding exists,
+but Cloudflare intentionally cannot reveal its value.
+
+## 7. Fast production diagnosis
+
+`GET /api/health` is intentionally unauthenticated. A `200` health response
+proves that Pages can reach the runner, but it does **not** prove that the two
+runner tokens match.
+
+Use a nonexistent UUID to test Pages-to-runner authentication without starting
+or billing a Hermes production:
+
+```bash
+curl -i \
+  https://soulloom-buildathon.pages.dev/api/studio/runs/00000000-0000-4000-8000-000000000000
+```
+
+Interpret the result before changing configuration:
+
+| Result | Meaning | Next check |
+|---|---|---|
+| `404 Studio job not found` | Authentication and proxy routing are working | Test a real Studio submission |
+| `401 Unauthorized` | Pages token and runner token differ | Repeat the token sync and Production deployment above |
+| `502 Studio runner is unavailable` | Function cannot reach the configured origin | Check runner process, Tunnel process, and `STUDIO_RUNNER_ORIGIN` |
+| `503 Studio runner proxy is not configured` | A required Pages binding is missing or invalid | Run `wrangler pages secret list` and inspect Production variables |
+| Cloudflare Access `403` or HTML login response | Access policy rejected the Function | Check the Access service-token pair and policy |
+
+After authentication returns the expected `404`, perform the smallest real
+acceptance test: submit one Studio run, poll its `statusUrl`, and require
+`state: completed`, `status: published`, `qaPassed: true`, and
+`convexEvidence: mirrored`.
