@@ -146,6 +146,7 @@ const REPAIR_RECIPE: GameRecipeV0 = {
   presentation: {
     motif: "broken bells, wax seals, ash scripture",
     cameraMood: "watchful",
+    music: structuredClone(DEFAULT_GAME_RECIPE.presentation.music),
   },
 };
 

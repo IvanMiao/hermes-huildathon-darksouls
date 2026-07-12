@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { FABLE_BOSS_MUSIC_URL } from "../boss-spec/defaultBossSpec";
+import { DEFAULT_GAME_RECIPE } from "../game-recipe/defaultGameRecipe";
 import { createBattleMusicPlayer } from "./createBattleMusicPlayer";
 
 class FakeAudio extends EventTarget {
@@ -32,7 +32,7 @@ describe("FABLE battle music", () => {
 
   it("starts from interaction and follows the combat sections", async () => {
     const interactionTarget = new EventTarget() as HTMLElement;
-    const player = createBattleMusicPlayer(FABLE_BOSS_MUSIC_URL, interactionTarget);
+    const player = createBattleMusicPlayer(DEFAULT_GAME_RECIPE.presentation.music, interactionTarget);
     const audio = FakeAudio.latest;
     expect(audio?.src).toBe("");
     expect(audio?.preload).toBe("none");
@@ -40,7 +40,7 @@ describe("FABLE battle music", () => {
 
     interactionTarget.dispatchEvent(new Event("pointerdown"));
     await new Promise((resolve) => globalThis.setTimeout(resolve, 0));
-    expect(audio?.src).toBe(FABLE_BOSS_MUSIC_URL);
+    expect(audio?.src).toBe(DEFAULT_GAME_RECIPE.presentation.music.url);
     expect(audio?.play).toHaveBeenCalledOnce();
 
     if (!audio) throw new Error("Missing fake battle music audio.");
@@ -63,7 +63,7 @@ describe("FABLE battle music", () => {
 
   it("ducks beneath the phase voice and releases audio resources", () => {
     const player = createBattleMusicPlayer(
-      FABLE_BOSS_MUSIC_URL,
+      DEFAULT_GAME_RECIPE.presentation.music,
       new EventTarget() as HTMLElement,
     );
     const audio = FakeAudio.latest;
@@ -80,7 +80,10 @@ describe("FABLE battle music", () => {
 
   it("keeps non-release music URLs silent", () => {
     const player = createBattleMusicPlayer(
-      "/audio/cached-house-track.mp3",
+      {
+        ...DEFAULT_GAME_RECIPE.presentation.music,
+        url: "/audio/cached-house-track.mp3",
+      },
       new EventTarget() as HTMLElement,
     );
     player.enterPhaseTwo();

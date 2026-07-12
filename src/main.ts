@@ -104,7 +104,7 @@ async function queryConvexRun(runId: string): Promise<unknown> {
 }
 
 async function loadConvexPublishedRun(runId: string): Promise<ConvexPublishedRun | null> {
-  const [{ isGameRecipeV0 }, document] = await Promise.all([
+  const [{ normalizeGameRecipe }, document] = await Promise.all([
     import("./game-recipe/normalize"),
     queryConvexRun(runId),
   ]);
@@ -114,11 +114,14 @@ async function loadConvexPublishedRun(runId: string): Promise<ConvexPublishedRun
     || !("status" in document)
     || !("recipe" in document)
     || document.status !== "published"
-    || !isGameRecipeV0(document.recipe)
   ) {
     return null;
   }
-  return { status: "published", recipe: document.recipe };
+  try {
+    return { status: "published", recipe: normalizeGameRecipe(document.recipe) };
+  } catch {
+    return null;
+  }
 }
 
 async function mountPublishedGame(runId: string): Promise<void> {

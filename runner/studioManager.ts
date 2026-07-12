@@ -121,6 +121,16 @@ function mergeGameRecipe(
     presentation: {
       motif: theme.motif,
       cameraMood: theme.cameraMood,
+      music: {
+        url: `/runs/${runId}/music.mp3`,
+        durationMs: 30_000,
+        sections: {
+          phaseOneLoopStartMs: 3_000,
+          phaseTwoStartMs: 14_000,
+          phaseTwoLoopStartMs: 17_000,
+          aftermathStartMs: 27_000,
+        },
+      },
     },
   };
 }

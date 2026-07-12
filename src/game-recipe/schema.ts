@@ -89,10 +89,35 @@ export const gameRecipeV0Schema = {
     presentation: {
       type: "object",
       additionalProperties: false,
-      required: ["motif", "cameraMood"],
+      required: ["motif", "cameraMood", "music"],
       properties: {
         motif: nonEmptyText,
         cameraMood: { enum: CAMERA_MOODS },
+        music: {
+          type: "object",
+          additionalProperties: false,
+          required: ["url", "durationMs", "sections"],
+          properties: {
+            url: { type: "string", minLength: 1, maxLength: 2_000 },
+            durationMs: { type: "integer", minimum: 3_000, maximum: 600_000 },
+            sections: {
+              type: "object",
+              additionalProperties: false,
+              required: [
+                "phaseOneLoopStartMs",
+                "phaseTwoStartMs",
+                "phaseTwoLoopStartMs",
+                "aftermathStartMs",
+              ],
+              properties: {
+                phaseOneLoopStartMs: { type: "integer", minimum: 0, maximum: 600_000 },
+                phaseTwoStartMs: { type: "integer", minimum: 0, maximum: 600_000 },
+                phaseTwoLoopStartMs: { type: "integer", minimum: 0, maximum: 600_000 },
+                aftermathStartMs: { type: "integer", minimum: 0, maximum: 600_000 },
+              },
+            },
+          },
+        },
       },
     },
   },

@@ -11,7 +11,9 @@ import {
   type EncounterSpec,
   type ProductionBrief,
   type QAReport,
+  type MusicArtifactData,
   type ThemeSpec,
+  type VoiceArtifactData,
 } from "./contracts";
 
 const hexColor = { type: "string", pattern: "^#[0-9a-fA-F]{6}$" } as const;
@@ -247,6 +249,50 @@ export const qaReportSchema = {
   },
 } as const;
 
+const generatedAudioMetadata = {
+  storageId: { type: "string", minLength: 1 },
+  url: { type: "string", pattern: "^https://" },
+  requestId: { type: "string", minLength: 1 },
+  traceId: { type: "string", minLength: 1 },
+} as const;
+
+export const voiceArtifactSchema = {
+  $id: "soulloom/VoiceArtifact/1.0",
+  type: "object",
+  additionalProperties: false,
+  required: ["storageId", "url", "text", "model", "source"],
+  properties: {
+    ...generatedAudioMetadata,
+    text: nonEmptyText,
+    model: { const: "eleven_multilingual_v2" },
+    source: { const: "elevenlabs_generated" },
+    characterCost: { type: "number", minimum: 0 },
+  },
+} as const;
+
+export const musicArtifactSchema = {
+  $id: "soulloom/MusicArtifact/1.0",
+  type: "object",
+  additionalProperties: false,
+  required: [
+    "storageId",
+    "url",
+    "durationMs",
+    "model",
+    "source",
+    "compositionPlan",
+  ],
+  properties: {
+    ...generatedAudioMetadata,
+    durationMs: { type: "integer", minimum: 3_000, maximum: 600_000 },
+    model: { const: "music_v2" },
+    source: { const: "elevenlabs_generated" },
+    songId: { type: "string", minLength: 1 },
+    compositionPlan: { type: "object" },
+    direction: { type: "object" },
+  },
+} as const;
+
 const ajv = new Ajv({ allErrors: true, strict: true });
 
 const validators = {
@@ -254,6 +300,8 @@ const validators = {
   ThemeSpec: ajv.compile(themeSpecSchema) as ValidateFunction<ThemeSpec>,
   EncounterSpec: ajv.compile(encounterSpecSchema) as ValidateFunction<EncounterSpec>,
   QAReport: ajv.compile(qaReportSchema) as ValidateFunction<QAReport>,
+  VoiceArtifact: ajv.compile(voiceArtifactSchema) as ValidateFunction<VoiceArtifactData>,
+  MusicArtifact: ajv.compile(musicArtifactSchema) as ValidateFunction<MusicArtifactData>,
 };
 
 export type ValidatedArtifactKind = keyof typeof validators;

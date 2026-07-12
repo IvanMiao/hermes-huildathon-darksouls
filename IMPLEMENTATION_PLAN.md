@@ -152,18 +152,29 @@ durations before the immutable `QAReport` is written. Browser smoke remains the
 separate P2 Playwright gate; it is not mislabelled as part of the in-process P3
 simulation.
 
-## P5 — Event-bound ElevenLabs voice
+## P5 — Event-bound ElevenLabs audio
 
-**Goal:** Generate one approved original Boss voice line, cache it, preload it, and play it exactly once on `phase_two_enter`; cached fallback is visibly labelled.
+**Goal:** Generate one phase-two Boss voice and one original, section-addressable
+dark-fantasy score for every published run. Store both in Convex, expose their
+generation metadata as evidence, and bind their HTTPS URLs into the published
+recipe.
 
-**Verify:** ten phase transitions produce ten single voice triggers; missing audio never blocks gameplay.
+**Verify:** ten phase transitions produce ten single voice triggers; phase one,
+phase two, and aftermath seek to the declared music sections; a new run cannot
+unlock its game route until both audio artifacts are mirrored.
 
 Implemented: a Convex Action calls ElevenLabs Multilingual v2 with an explicit
 high-fidelity character-voice profile, stores the MP3 in Convex File Storage,
 and the runtime preloads HTTPS voice artifacts for a single `phase_two`
 playback. Production credential state is managed outside the repository; the
 FABLE's approved cached demo line uses the user-selected Eleven v3 dramatic
-render. The ten-transition audio gate is still required before P5 closes.
+render. A second Convex Action composes a 30-second Music v2 instrumental from
+five fixed-duration chunks, customized from the run's controlled archetype,
+camera mood, and arena vocabulary. Free-form boss and motif text remain in the
+evidence direction but do not enter the provider prompt. `VoiceArtifact` and `MusicArtifact` include model,
+request/song identifiers, storage IDs, URLs, and generation plans in Control
+Room evidence. Cached music remains only for the playground and historical
+recipe migration; it is not presented as new-run evidence.
 
 ## P6 — Convex evidence layer and Cloudflare delivery
 
@@ -196,7 +207,7 @@ Only after P1–P6 gates pass:
 1. Phase-two freeze frame, light shift, halo and nova.
 2. 60–80 ms hit stop, boss flash and restrained camera shake.
 3. Dodge trail and perfect-dodge feedback.
-4. Cached house music and audio ducking.
+4. Per-run generated music and audio ducking.
 5. Record fallback video and rehearse the two-minute path.
 
 FABLE now binds the cached Music v2 house score to combat state: phase one and
@@ -204,7 +215,10 @@ phase two loop their authored sections, the transition and aftermath retain
 their dedicated cues, and the v3 voice ducks the score by roughly 9 dB. Audio
 starts on the first battle interaction to comply with browser autoplay policy.
 
-Do not add mobile controls, arbitrary code generation, generated sprite sheets, dynamic music in the critical path, inventory, progression, multiple bosses or a fourth attack.
+Do not add mobile controls, arbitrary code generation, generated sprite sheets,
+runtime-adaptive music synthesis, inventory, progression, multiple bosses or a
+fourth attack. Per-run Music v2 generation is a release-bound batch artifact,
+not runtime synthesis.
 
 ## Time-box checkpoints
 

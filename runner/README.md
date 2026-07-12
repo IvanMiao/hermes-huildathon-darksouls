@@ -78,10 +78,12 @@ npm run dev
 
 Vite proxies `/api` to `127.0.0.1:8787`. `POST /api/studio/runs` requires an
 `Idempotency-Key`, returns a job immediately, and accepts one production at a
-time. The browser enters the returned Control Room immediately and polls the
-`statusUrl`; each durable event and artifact is included while production is
-running. Completed evidence is mirrored to Convex before the job becomes
-complete. `GET /api/health` remains available
+time. The browser enters the returned Control Room immediately and subscribes
+to the protected same-origin event stream, with bounded polling as a
+rolling-deployment fallback. Each durable event and artifact is included while
+production is running. After deterministic QA, the Audio Producer creates
+per-run phase voice and boss music evidence; both are mirrored to Convex before
+the job becomes complete. `GET /api/health` remains available
 for Tunnel health checks. Text input is live; tweet-image OCR is still a
 labelled fixture path.
 

@@ -1,4 +1,5 @@
 import Ajv, { type ErrorObject, type ValidateFunction } from "ajv";
+import { DEFAULT_BATTLE_MUSIC_SPEC } from "./defaultGameRecipe";
 import { gameRecipeV0Schema } from "./schema";
 import type { AttackOrder, GameRecipeV0 } from "./types";
 
@@ -19,7 +20,40 @@ function hasAdjacentCharge(order: AttackOrder): boolean {
   return order.some((attack, index) => attack === "charge" && order[index + 1] === "charge");
 }
 
+function withLegacyMusic(input: unknown): unknown {
+  if (
+    typeof input !== "object"
+    || input === null
+    || !("presentation" in input)
+    || typeof input.presentation !== "object"
+    || input.presentation === null
+    || "music" in input.presentation
+  ) {
+    return input;
+  }
+  return {
+    ...input,
+    presentation: {
+      ...input.presentation,
+      music: structuredClone(DEFAULT_BATTLE_MUSIC_SPEC),
+    },
+  };
+}
+
 function assertPackageSemantics(recipe: GameRecipeV0): void {
+  const { music } = recipe.presentation;
+  const { sections } = music;
+  if (
+    sections.phaseOneLoopStartMs >= sections.phaseTwoStartMs
+    || sections.phaseTwoStartMs >= sections.phaseTwoLoopStartMs
+    || sections.phaseTwoLoopStartMs >= sections.aftermathStartMs
+    || sections.aftermathStartMs >= music.durationMs
+  ) {
+    throw new GameRecipeValidationError(
+      "Music sections must be ordered within the generated track duration.",
+    );
+  }
+
   if (recipe.archetype === "duel") {
     if (recipe.arena.rule !== "open_ring" || recipe.combat.phaseTwoRule !== "haste") {
       throw new GameRecipeValidationError(
@@ -54,7 +88,8 @@ function assertPackageSemantics(recipe: GameRecipeV0): void {
 }
 
 export function normalizeGameRecipe(input: unknown): GameRecipeV0 {
-  if (!validateRecipe(input)) {
+  const candidate = withLegacyMusic(input);
+  if (!validateRecipe(candidate)) {
     const details = validateRecipe.errors
       ?.map((error) => `${error.instancePath || "/"} ${error.message ?? "is invalid"}`)
       .join("; ");
@@ -63,8 +98,8 @@ export function normalizeGameRecipe(input: unknown): GameRecipeV0 {
       validateRecipe.errors ?? [],
     );
   }
-  assertPackageSemantics(input);
-  return structuredClone(input);
+  assertPackageSemantics(candidate);
+  return structuredClone(candidate);
 }
 
 export function isGameRecipeV0(input: unknown): input is GameRecipeV0 {

@@ -4,7 +4,8 @@ import type {
   StudioActor,
   StudioEvent,
 } from "../../runner/contracts";
-import { isGameRecipeV0 } from "../game-recipe/normalize";
+import { normalizeGameRecipe } from "../game-recipe/normalize";
+import type { GameRecipeV0 } from "../game-recipe/types";
 import type {
   QAProofCheck,
   StudioArtifactFixture,
@@ -15,6 +16,7 @@ const ACTORS = new Set<StudioActor>([
   "Studio Manager",
   "Creative Director",
   "Encounter Designer",
+  "Audio Producer",
   "Release QA",
   "Publisher",
 ]);
@@ -51,6 +53,8 @@ const ARTIFACT_KINDS = new Set<StudioArtifactFixture["kind"]>([
   "EncounterSpec",
   "DraftGameRecipe",
   "QAReport",
+  "VoiceArtifact",
+  "MusicArtifact",
 ]);
 const SOURCE_MODES = new Set<ArtifactSource["mode"]>([
   "generated",
@@ -84,6 +88,12 @@ function isStudioEvent(value: unknown): value is StudioEvent {
 
 function artifactSummary(kind: string, version: number, data: unknown): string {
   if (isRecord(data) && typeof data.summary === "string") return data.summary;
+  if (kind === "VoiceArtifact" && isRecord(data) && typeof data.text === "string") {
+    return `Generated phase-two voice: “${data.text}”`;
+  }
+  if (kind === "MusicArtifact" && isRecord(data) && typeof data.durationMs === "number") {
+    return `Generated original boss score · ${(data.durationMs / 1_000).toFixed(0)} seconds.`;
+  }
   return `${kind} v${version} recorded by the live Studio run.`;
 }
 
@@ -143,11 +153,16 @@ export function toLiveStudioRun(value: unknown): StudioRunFixture | null {
     typeof value.runId !== "string"
     || typeof value.inputText !== "string"
     || (value.status !== "published" && value.status !== "release_blocked")
-    || !isGameRecipeV0(value.recipe)
     || !Array.isArray(value.events)
     || !value.events.every(isStudioEvent)
     || !Array.isArray(value.artifacts)
   ) {
+    return null;
+  }
+  let recipe: GameRecipeV0;
+  try {
+    recipe = normalizeGameRecipe(value.recipe);
+  } catch {
     return null;
   }
   const events = value.events;
@@ -176,11 +191,11 @@ export function toLiveStudioRun(value: unknown): StudioRunFixture | null {
   });
   return {
     runId: value.runId,
-    label: `${value.recipe.boss.boss.name}, ${value.recipe.boss.boss.title}`,
+    label: `${recipe.boss.boss.name}, ${recipe.boss.boss.title}`,
     evidenceKind: "live",
     inputText: value.inputText,
     status: value.status,
-    recipe: value.recipe,
+    recipe,
     events,
     artifacts: validArtifacts,
     qaReports,

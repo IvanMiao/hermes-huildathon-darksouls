@@ -1,3 +1,5 @@
+import type { BattleMusicSpec } from "../game-recipe/types";
+
 export interface BattleMusicPlayer {
   enterPhaseTwo(): void;
   playAftermath(): void;
@@ -11,11 +13,6 @@ type MusicSection = "phase_one" | "phase_two" | "aftermath";
 
 const BASE_VOLUME = 0.32;
 const DUCKED_VOLUME = 0.11;
-const PHASE_ONE_LOOP_START_SECONDS = 6;
-const PHASE_TRANSITION_START_SECONDS = 30;
-const PHASE_TWO_LOOP_START_SECONDS = 34;
-const AFTERMATH_START_SECONDS = 58;
-
 const silentPlayer: BattleMusicPlayer = {
   enterPhaseTwo: () => undefined,
   playAftermath: () => undefined,
@@ -25,14 +22,18 @@ const silentPlayer: BattleMusicPlayer = {
   dispose: () => undefined,
 };
 
-/** Keeps the cached FABLE score aligned with combat state without blocking play. */
+/** Keeps the generated score aligned with combat state without blocking play. */
 export function createBattleMusicPlayer(
-  musicUrl: string,
+  music: BattleMusicSpec,
   interactionTarget: HTMLElement,
 ): BattleMusicPlayer {
-  if (!musicUrl.startsWith("https://")) {
+  if (!music.url.startsWith("https://")) {
     return silentPlayer;
   }
+  const phaseOneLoopStartSeconds = music.sections.phaseOneLoopStartMs / 1_000;
+  const phaseTwoStartSeconds = music.sections.phaseTwoStartMs / 1_000;
+  const phaseTwoLoopStartSeconds = music.sections.phaseTwoLoopStartMs / 1_000;
+  const aftermathStartSeconds = music.sections.aftermathStartMs / 1_000;
 
   const audio = new Audio();
   audio.preload = "none";
@@ -68,7 +69,7 @@ export function createBattleMusicPlayer(
     startRequested = true;
     globalThis.setTimeout(() => {
       if (disposed) return;
-      audio.src = musicUrl;
+      audio.src = music.url;
       applyPendingSeek();
       void audio.play().then(() => {
         started = true;
@@ -81,10 +82,10 @@ export function createBattleMusicPlayer(
   };
 
   const keepCurrentSectionLooping = () => {
-    if (section === "phase_one" && audio.currentTime >= PHASE_TRANSITION_START_SECONDS) {
-      seek(PHASE_ONE_LOOP_START_SECONDS);
-    } else if (section === "phase_two" && audio.currentTime >= AFTERMATH_START_SECONDS) {
-      seek(PHASE_TWO_LOOP_START_SECONDS);
+    if (section === "phase_one" && audio.currentTime >= phaseTwoStartSeconds) {
+      seek(phaseOneLoopStartSeconds);
+    } else if (section === "phase_two" && audio.currentTime >= aftermathStartSeconds) {
+      seek(phaseTwoLoopStartSeconds);
     }
   };
 
@@ -97,12 +98,12 @@ export function createBattleMusicPlayer(
     enterPhaseTwo() {
       if (disposed) return;
       section = "phase_two";
-      seek(PHASE_TRANSITION_START_SECONDS);
+      seek(phaseTwoStartSeconds);
     },
     playAftermath() {
       if (disposed) return;
       section = "aftermath";
-      seek(AFTERMATH_START_SECONDS);
+      seek(aftermathStartSeconds);
     },
     duckForVoice() {
       if (disposed) return;

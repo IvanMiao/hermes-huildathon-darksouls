@@ -1,5 +1,16 @@
 import { DEFAULT_BOSS_SPEC } from "../boss-spec/defaultBossSpec";
-import type { GameRecipeV0 } from "./types";
+import type { BattleMusicSpec, GameRecipeV0 } from "./types";
+
+export const DEFAULT_BATTLE_MUSIC_SPEC = {
+  url: "https://cheery-goat-595.eu-west-1.convex.cloud/api/storage/946f7c4d-23c2-4152-a594-d2858f7a3aa2",
+  durationMs: 64_000,
+  sections: {
+    phaseOneLoopStartMs: 6_000,
+    phaseTwoStartMs: 30_000,
+    phaseTwoLoopStartMs: 34_000,
+    aftermathStartMs: 58_000,
+  },
+} satisfies BattleMusicSpec;
 
 export const DEFAULT_GAME_RECIPE = {
   version: 1,
@@ -26,5 +37,6 @@ export const DEFAULT_GAME_RECIPE = {
   presentation: {
     motif: "sealed mouths beneath an orange halo",
     cameraMood: "oppressive",
+    music: DEFAULT_BATTLE_MUSIC_SPEC,
   },
 } satisfies GameRecipeV0;

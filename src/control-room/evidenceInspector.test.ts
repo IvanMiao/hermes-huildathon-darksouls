@@ -27,6 +27,52 @@ const qaArtifact = {
 } satisfies AnyArtifactEnvelope;
 
 describe("Control Room evidence inspector", () => {
+  it("exposes generated music playback and request metadata", () => {
+    const musicArtifact = {
+      id: "run:MusicArtifact:v1",
+      runId: "run",
+      kind: "MusicArtifact",
+      version: 1,
+      createdAt: "2026-07-11T12:00:02.000Z",
+      actor: "Audio Producer",
+      source: { mode: "generated" },
+      data: {
+        storageId: "music-storage-id",
+        url: "https://audio.example/boss-score.mp3",
+        durationMs: 64_000,
+        model: "music_v2",
+        source: "elevenlabs_generated",
+        songId: "song-id",
+        requestId: "request-id",
+        compositionPlan: { chunks: [] },
+      },
+    } satisfies AnyArtifactEnvelope;
+    const event = {
+      sequence: 9,
+      runId: "run",
+      occurredAt: "2026-07-11T12:00:02.000Z",
+      actor: "Audio Producer",
+      type: "artifact_written",
+      status: "passed",
+      summary: "MusicArtifact v1 recorded.",
+      artifact: { kind: "MusicArtifact", version: 1 },
+    } satisfies StudioEvent;
+
+    expect(deriveEvidenceInspectorModel(event, [musicArtifact])).toMatchObject({
+      title: "MusicArtifact v1",
+      audio: {
+        url: "https://audio.example/boss-score.mp3",
+        label: "Generated boss music",
+      },
+      metrics: expect.arrayContaining([
+        ["Model", "music_v2"],
+        ["Duration", "64 s"],
+        ["Song ID", "song-id"],
+        ["Request ID", "request-id"],
+      ]),
+    });
+  });
+
   it("shows QA-stage evidence for the selected timeline event", () => {
     const event = {
       sequence: 4,

@@ -20,6 +20,8 @@ export const ARTIFACT_KINDS = [
   "EncounterSpec",
   "DraftGameRecipe",
   "QAReport",
+  "VoiceArtifact",
+  "MusicArtifact",
 ] as const;
 
 export type ArtifactKind = (typeof ARTIFACT_KINDS)[number];
@@ -38,6 +40,7 @@ export type StudioQACheck = Omit<ReleaseGateCheck, "artifact" | "owner"> & {
 export type StudioActor =
   | "Studio Manager"
   | SpecialistOwner
+  | "Audio Producer"
   | "Release QA"
   | "Publisher";
 
@@ -102,12 +105,38 @@ export interface QAReport {
   ownersToRetry: QAOwner[];
 }
 
+export interface VoiceArtifactData {
+  storageId: string;
+  url: string;
+  text: string;
+  model: "eleven_multilingual_v2";
+  source: "elevenlabs_generated";
+  requestId?: string;
+  traceId?: string;
+  characterCost?: number;
+}
+
+export interface MusicArtifactData {
+  storageId: string;
+  url: string;
+  durationMs: number;
+  model: "music_v2";
+  source: "elevenlabs_generated";
+  songId?: string;
+  requestId?: string;
+  traceId?: string;
+  compositionPlan: unknown;
+  direction?: unknown;
+}
+
 export interface ArtifactDataByKind {
   ProductionBrief: ProductionBrief;
   ThemeSpec: ThemeSpec;
   EncounterSpec: EncounterSpec;
   DraftGameRecipe: GameRecipeV0;
   QAReport: QAReport;
+  VoiceArtifact: VoiceArtifactData;
+  MusicArtifact: MusicArtifactData;
 }
 
 export interface ArtifactEnvelope<K extends ArtifactKind = ArtifactKind> {

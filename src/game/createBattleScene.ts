@@ -1,5 +1,4 @@
 import * as THREE from "three";
-import { FABLE_BOSS_MUSIC_URL } from "../boss-spec/defaultBossSpec";
 import type { BossSpec } from "../boss-spec/types";
 import type { GameRecipeV0 } from "../game-recipe/types";
 import {
@@ -692,7 +691,7 @@ export function createBattleScene(recipe: GameRecipeV0, container: HTMLElement):
   }
   const input = createInput(container);
   const battleMusic = createBattleMusicPlayer(
-    visualProfile.family === "fable" ? FABLE_BOSS_MUSIC_URL : "",
+    recipe.presentation.music,
     container,
   );
   const phaseVoice = createPhaseVoicePlayer(spec.voice.url, container, {

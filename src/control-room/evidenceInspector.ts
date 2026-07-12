@@ -28,6 +28,10 @@ export interface EvidenceInspectorModel {
   description: string;
   metrics: ReadonlyArray<readonly [string, string]>;
   qaChecks: EvidenceQACheck[];
+  audio?: {
+    url: string;
+    label: string;
+  };
   artifactData?: unknown;
   comparison?: {
     label: string;
@@ -129,6 +133,35 @@ export function deriveEvidenceInspectorModel(
     const previous = artifacts.find((candidate) => (
       candidate.kind === artifact.kind && candidate.version === artifact.version - 1
     ));
+    const artifactData = isRecord(artifact.data) ? artifact.data : undefined;
+    const generationMetrics: ReadonlyArray<readonly [string, string]> = artifactData
+      ? [
+          ...(typeof artifactData.model === "string"
+            ? [["Model", artifactData.model] as const]
+            : []),
+          ...(typeof artifactData.durationMs === "number"
+            ? [["Duration", `${(artifactData.durationMs / 1_000).toFixed(0)} s`] as const]
+            : []),
+          ...(typeof artifactData.songId === "string"
+            ? [["Song ID", artifactData.songId] as const]
+            : []),
+          ...(typeof artifactData.requestId === "string"
+            ? [["Request ID", artifactData.requestId] as const]
+            : []),
+          ...(typeof artifactData.traceId === "string"
+            ? [["Trace ID", artifactData.traceId] as const]
+            : []),
+          ...(typeof artifactData.characterCost === "number"
+            ? [["Character cost", String(artifactData.characterCost)] as const]
+            : []),
+          ...(typeof artifactData.storageId === "string"
+            ? [["Storage ID", artifactData.storageId] as const]
+            : []),
+        ]
+      : [];
+    const audioUrl = artifactData && typeof artifactData.url === "string"
+      ? artifactData.url
+      : undefined;
     return {
       eyebrow: `${event.type.replaceAll("_", " ")} · ${event.status}`.toUpperCase(),
       title: `${artifact.kind} v${artifact.version}`,
@@ -137,9 +170,18 @@ export function deriveEvidenceInspectorModel(
         ["Owner", artifact.actor],
         ["Source", artifact.source.mode.replaceAll("_", " ")],
         ["Version", String(artifact.version)],
+        ...generationMetrics,
       ],
       qaChecks: qaChecksFrom(artifact.data),
       artifactData: artifact.data,
+      ...(audioUrl?.startsWith("https://") ? {
+        audio: {
+          url: audioUrl,
+          label: artifact.kind === "MusicArtifact"
+            ? "Generated boss music"
+            : "Generated phase-two voice",
+        },
+      } : {}),
       ...(previous ? {
         comparison: {
           label: `${artifact.kind} v${previous.version} → v${artifact.version}`,
@@ -237,6 +279,19 @@ export function createEvidenceInspector(
   description.className = "inspector-description";
   description.textContent = model.description;
   container.append(header, description, createMetrics(model.metrics));
+
+  if (model.audio) {
+    const audioEvidence = document.createElement("div");
+    audioEvidence.className = "inspector-audio";
+    const label = document.createElement("small");
+    label.textContent = model.audio.label;
+    const audio = document.createElement("audio");
+    audio.controls = true;
+    audio.preload = "none";
+    audio.src = model.audio.url;
+    audioEvidence.append(label, audio);
+    container.append(audioEvidence);
+  }
 
   if (model.comparison) {
     const comparison = document.createElement("div");

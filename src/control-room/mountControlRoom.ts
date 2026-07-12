@@ -32,6 +32,7 @@ const GRAPH_ACTORS: readonly StudioActor[] = [
   "Encounter Designer",
   "Release QA",
   "Publisher",
+  "Audio Producer",
 ];
 
 function actorState(actor: StudioActor, events: readonly StudioEvent[]): string {

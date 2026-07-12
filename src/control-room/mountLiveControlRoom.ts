@@ -22,6 +22,7 @@ const GRAPH_ACTORS: readonly StudioActor[] = [
   "Encounter Designer",
   "Release QA",
   "Publisher",
+  "Audio Producer",
 ];
 
 type ActorState = "waiting" | "active" | "complete" | "blocked";

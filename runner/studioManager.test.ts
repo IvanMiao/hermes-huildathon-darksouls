@@ -33,6 +33,10 @@ describe("P3 local autonomous studio", () => {
 
     expect(result.status).toBe("published");
     expect(result.qaReport.passed).toBe(true);
+    expect(result.recipe.presentation.music).toMatchObject({
+      url: "/runs/direct-pass/music.mp3",
+      durationMs: 30_000,
+    });
     expect(result.recipe.boss.boss.name).not.toBe("FABLE");
     expect(result.artifacts.find(({ kind }) => kind === "ThemeSpec")?.source)
       .toMatchObject({ agentRuntime: "local_fixture" });

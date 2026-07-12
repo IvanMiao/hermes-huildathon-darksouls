@@ -24,7 +24,10 @@ async function produce(
   });
   let convexEvidence: "disabled" | "mirrored" | "failed" = "disabled";
   try {
-    convexEvidence = (await mirrorRunToConvex(result)).mode;
+    convexEvidence = (await mirrorRunToConvex(result, {
+      onEvent: progress.onEvent,
+      onArtifact: progress.onArtifact,
+    })).mode;
   } catch (error) {
     convexEvidence = "failed";
     console.error(`Convex evidence mirror failed: ${
