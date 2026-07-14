@@ -5,6 +5,10 @@ import {
   type Server,
   type ServerResponse,
 } from "node:http";
+import type {
+  AnyArtifactEnvelope,
+  StudioEvent,
+} from "./contracts";
 
 const MAX_REQUEST_BYTES = 32 * 1024;
 const MAX_INPUT_CHARACTERS = 2_000;
@@ -29,10 +33,15 @@ export interface CompletedStudioRun {
 
 export interface StudioJobView {
   requestId: string;
+  runId: string;
+  inputText: string;
   state: StudioJobState;
   statusUrl: string;
+  controlRoomUrl: string;
   submittedAt: string;
   updatedAt: string;
+  events: StudioEvent[];
+  artifacts: AnyArtifactEnvelope[];
   result?: CompletedStudioRun;
   error?: string;
 }
@@ -40,15 +49,25 @@ export interface StudioJobView {
 interface StudioJob extends StudioJobView {
   idempotencyKey: string;
   expiresAt: number;
+  subscribers: Set<ServerResponse>;
 }
 
 export interface StudioApiServerOptions {
   agentMode: StudioAgentMode;
   apiToken?: string;
-  produce: (inputText: string) => Promise<CompletedStudioRun>;
+  produce: (
+    inputText: string,
+    progress: StudioProductionProgress,
+  ) => Promise<CompletedStudioRun>;
   now?: () => number;
   createRequestId?: () => string;
   logError?: (error: unknown) => void;
+}
+
+export interface StudioProductionProgress {
+  runId: string;
+  onEvent: (event: StudioEvent) => void;
+  onArtifact: (artifact: AnyArtifactEnvelope) => void;
 }
 
 export interface StudioApiServer {
@@ -121,13 +140,24 @@ function tokenMatches(actual: string | null, expected: string): boolean {
 function publicJob(job: StudioJob): StudioJobView {
   return {
     requestId: job.requestId,
+    runId: job.runId,
+    inputText: job.inputText,
     state: job.state,
     statusUrl: job.statusUrl,
+    controlRoomUrl: job.controlRoomUrl,
     submittedAt: job.submittedAt,
     updatedAt: job.updatedAt,
+    events: structuredClone(job.events),
+    artifacts: structuredClone(job.artifacts),
     ...(job.result ? { result: job.result } : {}),
     ...(job.error ? { error: job.error } : {}),
   };
+}
+
+function writeSnapshot(response: ServerResponse, job: StudioJob): void {
+  if (!response.writableEnded && !response.destroyed) {
+    response.write(`event: snapshot\ndata: ${JSON.stringify(publicJob(job))}\n\n`);
+  }
 }
 
 export function createStudioApiServer(options: StudioApiServerOptions): StudioApiServer {
@@ -160,13 +190,26 @@ export function createStudioApiServer(options: StudioApiServerOptions): StudioAp
       updatedAt: new Date(now()).toISOString(),
       expiresAt: now() + JOB_RETENTION_MS,
     });
+    for (const subscriber of job.subscribers) {
+      writeSnapshot(subscriber, job);
+    }
   }
 
   async function produce(job: StudioJob, inputText: string): Promise<void> {
     activeRequestId = job.requestId;
     updateJob(job, { state: "running" });
     try {
-      const result = await options.produce(inputText);
+      const result = await options.produce(inputText, {
+        runId: job.runId,
+        onEvent: (event) => {
+          job.events.push(structuredClone(event));
+          updateJob(job, {});
+        },
+        onArtifact: (artifact) => {
+          job.artifacts.push(structuredClone(artifact));
+          updateJob(job, {});
+        },
+      });
       updateJob(job, { state: "completed", result });
     } catch (error) {
       options.logError?.(error);
@@ -194,6 +237,32 @@ export function createStudioApiServer(options: StudioApiServerOptions): StudioAp
     if (options.apiToken && !tokenMatches(bearerToken(request), options.apiToken)) {
       sendJson(response, 401, { error: "Unauthorized." }, {
         "WWW-Authenticate": "Bearer",
+      });
+      return;
+    }
+
+    const streamMatch = url.pathname.match(
+      /^\/api\/studio\/runs\/([0-9a-f-]{36})\/stream$/,
+    );
+    if (request.method === "GET" && streamMatch?.[1] && JOB_ID_PATTERN.test(streamMatch[1])) {
+      pruneJobs();
+      const job = jobs.get(streamMatch[1]);
+      if (!job) {
+        sendJson(response, 404, { error: "Studio job not found." });
+        return;
+      }
+      response.writeHead(200, {
+        "Content-Type": "text/event-stream; charset=utf-8",
+        "Cache-Control": "no-store, no-transform",
+        Connection: "keep-alive",
+        "X-Accel-Buffering": "no",
+        "X-Content-Type-Options": "nosniff",
+      });
+      response.flushHeaders();
+      job.subscribers.add(response);
+      writeSnapshot(response, job);
+      request.once("close", () => {
+        job.subscribers.delete(response);
       });
       return;
     }
@@ -249,12 +318,18 @@ export function createStudioApiServer(options: StudioApiServerOptions): StudioAp
       const timestamp = new Date(now()).toISOString();
       const job: StudioJob = {
         requestId,
+        runId: requestId,
+        inputText,
         idempotencyKey,
         state: "queued",
         statusUrl: `/api/studio/runs/${requestId}`,
+        controlRoomUrl: `/control-room/${requestId}?job=1`,
         submittedAt: timestamp,
         updatedAt: timestamp,
+        events: [],
+        artifacts: [],
         expiresAt: now() + JOB_RETENTION_MS,
+        subscribers: new Set(),
       };
       jobs.set(requestId, job);
       requestsByIdempotencyKey.set(idempotencyKey, requestId);
@@ -271,6 +346,10 @@ export function createStudioApiServer(options: StudioApiServerOptions): StudioAp
   return {
     server,
     close: () => new Promise((resolveClose, rejectClose) => {
+      for (const job of jobs.values()) {
+        for (const subscriber of job.subscribers) subscriber.end();
+        job.subscribers.clear();
+      }
       server.close((error) => {
         if (error) rejectClose(error);
         else resolveClose();

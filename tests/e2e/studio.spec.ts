@@ -1,15 +1,61 @@
 import { expect, test } from "@playwright/test";
 
 test("starts a live Studio run through the runner API", async ({ page }) => {
+  const requestId = "12345678-1234-1234-1234-123456789abc";
   await page.route("**/api/studio/runs", async (route) => {
     await route.fulfill({
-      status: 201,
+      status: 202,
       contentType: "application/json",
       body: JSON.stringify({
-        runId: "live-hermes-run",
-        status: "published",
-        gameUrl: "/games/live-hermes-run",
-        controlRoomUrl: "/control-room/live-hermes-run",
+        requestId,
+        runId: requestId,
+        inputText: "Agreement should arrive before anyone can react.",
+        state: "queued",
+        statusUrl: `/api/studio/runs/${requestId}`,
+        controlRoomUrl: `/control-room/${requestId}?job=1`,
+        submittedAt: "2026-07-11T12:00:00.000Z",
+        updatedAt: "2026-07-11T12:00:00.000Z",
+        events: [],
+        artifacts: [],
+      }),
+    });
+  });
+  let statusReads = 0;
+  await page.route("**/api/studio/runs/*", async (route) => {
+    statusReads += 1;
+    const completed = statusReads > 1;
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        requestId,
+        runId: requestId,
+        inputText: "Agreement should arrive before anyone can react.",
+        state: completed ? "completed" : "running",
+        statusUrl: `/api/studio/runs/${requestId}`,
+        controlRoomUrl: `/control-room/${requestId}?job=1`,
+        submittedAt: "2026-07-11T12:00:00.000Z",
+        updatedAt: completed ? "2026-07-11T12:00:02.000Z" : "2026-07-11T12:00:01.000Z",
+        events: [{
+          runId: requestId,
+          sequence: 1,
+          occurredAt: "2026-07-11T12:00:01.000Z",
+          actor: "Studio Manager",
+          type: "run_started",
+          status: "started",
+          summary: "Production started.",
+        }],
+        artifacts: [],
+        ...(completed ? {
+          result: {
+            runId: requestId,
+            status: "published",
+            qaPassed: true,
+            convexEvidence: "mirrored",
+            gameUrl: `/games/${requestId}`,
+            controlRoomUrl: `/control-room/${requestId}`,
+          },
+        } : {}),
       }),
     });
   });
@@ -24,7 +70,12 @@ test("starts a live Studio run through the runner API", async ({ page }) => {
   );
   await page.getByRole("button", { name: "MAKE IT PLAYABLE" }).click();
 
-  await expect(page).toHaveURL(/\/games\/live-hermes-run$/);
+  await expect(page).toHaveURL(new RegExp(`/control-room/${requestId}\\?job=1$`));
+  await expect(page.getByRole("heading", { name: "Building your boss fight" })).toBeVisible();
+  await expect(page.locator(".release-banner strong")).toHaveText("HERMES IS PRODUCING");
+  await expect(page.locator(".release-banner strong")).toHaveText("BOSS FIGHT READY");
+  await expect(page.getByRole("link", { name: "OPEN BOSS FIGHT" })).toBeVisible();
+  await expect(page.locator("#game canvas")).toHaveCount(0);
 });
 
 test("accepts a tweet screenshot as the source", async ({ page }) => {
@@ -51,15 +102,17 @@ test("replays blocked, targeted repair, and published states", async ({ page }) 
 
   await replay.fill("12");
   await expect(page.locator(".release-banner strong")).toHaveText("RELEASE BLOCKED");
-  await expect(page.locator(".qa-checks")).toContainText(
+  await expect(page.locator("[data-region='evidence-inspector']")).toContainText(
     "Procession must use closing_ring and contain an adjacent charge chain",
   );
 
   await replay.fill("14");
   await expect(page.locator(".release-banner strong")).toHaveText("TARGETED REPAIR");
-  await expect(page.locator(".repair-diff")).toContainText("charge → sweep");
-  await expect(page.locator(".repair-diff")).toContainText("charge → charge");
-  await expect(page.locator(".repair-diff")).toContainText("Encounter Designer only");
+  await expect(page.locator("[data-region='evidence-inspector']")).toContainText("EncounterSpec v2");
+  await expect(page.locator("[data-region='evidence-inspector']")).toContainText("charge");
+
+  await page.locator(".timeline-event").nth(10).click();
+  await expect(page.locator("[data-region='evidence-inspector']")).toContainText("QAReport v1");
 
   await replay.fill("19");
   await expect(page.locator(".release-banner strong")).toHaveText("SHIPPED");

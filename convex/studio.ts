@@ -7,7 +7,31 @@ const voiceEvidence = v.object({
   url: v.string(),
   text: v.string(),
   source: v.literal("elevenlabs_generated"),
+  model: v.optional(v.literal("eleven_multilingual_v2")),
+  requestId: v.optional(v.string()),
+  traceId: v.optional(v.string()),
+  characterCost: v.optional(v.number()),
 });
+const musicEvidence = v.object({
+  storageId: v.id("_storage"),
+  url: v.string(),
+  durationMs: v.number(),
+  model: v.literal("music_v2"),
+  source: v.literal("elevenlabs_generated"),
+  songId: v.optional(v.string()),
+  requestId: v.optional(v.string()),
+  traceId: v.optional(v.string()),
+  compositionPlan: v.any(),
+  direction: v.optional(v.any()),
+});
+
+const elevenLabsVoiceSettings = {
+  stability: 0.42,
+  similarity_boost: 0.75,
+  style: 0,
+  use_speaker_boost: true,
+  speed: 0.88,
+} as const;
 
 export const generateVoice = action({
   args: { text: v.string(), integrationToken: v.string() },
@@ -32,7 +56,8 @@ export const generateVoice = action({
         },
         body: JSON.stringify({
           text,
-          model_id: "eleven_flash_v2_5",
+          model_id: "eleven_multilingual_v2",
+          voice_settings: elevenLabsVoiceSettings,
         }),
       },
     );
@@ -46,11 +71,23 @@ export const generateVoice = action({
     if (!url) {
       throw new Error("Convex stored the voice but did not return a public URL.");
     }
+    const requestId = response.headers.get("request-id");
+    const traceId = response.headers.get("x-trace-id");
+    const characterCostHeader = response.headers.get("character-cost");
+    const characterCostValue = characterCostHeader === null
+      ? undefined
+      : Number(characterCostHeader);
     return {
       storageId,
       url,
       text,
+      model: "eleven_multilingual_v2" as const,
       source: "elevenlabs_generated" as const,
+      ...(requestId ? { requestId } : {}),
+      ...(traceId ? { traceId } : {}),
+      ...(characterCostValue !== undefined && Number.isFinite(characterCostValue)
+        ? { characterCost: characterCostValue }
+        : {}),
     };
   },
 });
@@ -66,6 +103,7 @@ export const mirrorRun = mutation({
     artifacts: v.any(),
     qaReport: v.any(),
     voice: v.optional(voiceEvidence),
+    music: v.optional(musicEvidence),
   },
   handler: async (ctx, { integrationToken, ...args }) => {
     const expectedToken = process.env.STUDIO_INTEGRATION_TOKEN;

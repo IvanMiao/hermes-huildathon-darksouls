@@ -1,7 +1,11 @@
 import { existsSync } from "node:fs";
 import { mirrorRunToConvex } from "./convexEvidence";
 import { createStudioRuntime } from "./runtime";
-import { createStudioApiServer, type CompletedStudioRun } from "./studioApiServer";
+import {
+  createStudioApiServer,
+  type CompletedStudioRun,
+  type StudioProductionProgress,
+} from "./studioApiServer";
 
 if (existsSync(".env.local")) {
   process.loadEnvFile(".env.local");
@@ -9,11 +13,21 @@ if (existsSync(".env.local")) {
 
 const port = Number.parseInt(process.env.SOULLOOM_RUNNER_PORT ?? "8787", 10);
 const { agentMode, manager } = createStudioRuntime();
-async function produce(inputText: string): Promise<CompletedStudioRun> {
-  const result = await manager.start(inputText);
+async function produce(
+  inputText: string,
+  progress: StudioProductionProgress,
+): Promise<CompletedStudioRun> {
+  const result = await manager.start(inputText, {
+    runId: progress.runId,
+    onEvent: progress.onEvent,
+    onArtifact: progress.onArtifact,
+  });
   let convexEvidence: "disabled" | "mirrored" | "failed" = "disabled";
   try {
-    convexEvidence = (await mirrorRunToConvex(result)).mode;
+    convexEvidence = (await mirrorRunToConvex(result, {
+      onEvent: progress.onEvent,
+      onArtifact: progress.onArtifact,
+    })).mode;
   } catch (error) {
     convexEvidence = "failed";
     console.error(`Convex evidence mirror failed: ${

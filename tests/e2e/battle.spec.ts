@@ -28,6 +28,8 @@ test("loads a crisp Three.js scene without browser errors", async ({ page }) => 
   await waitForDebugBridge(page);
 
   await expect(page.locator("#game canvas")).toBeVisible();
+  await expect(page.locator("[data-scene-ui]")).toHaveAttribute("data-visual-family", "fable");
+  await expect(page.locator("[data-scene-ui]")).not.toHaveAttribute("data-arena-visual");
   const canvasSize = await page.locator("#game canvas").evaluate((canvas) => ({
     backingWidth: (canvas as HTMLCanvasElement).width,
     backingHeight: (canvas as HTMLCanvasElement).height,
@@ -78,7 +80,14 @@ test("QA can inspect every release-critical state", async ({ page }) => {
       (window as any).__SOULLOOM__.getSnapshot().combat.boss.attack?.type
     ));
     expect(attackType).toBe(scenario);
+    await expect(page.locator("[data-scene-ui]")).toHaveAttribute(
+      "data-attack-feedback-stage",
+      "warning",
+    );
   }
+
+  await trigger(page, "perfect_dodge");
+  await expect(page.locator(".perfect-dodge-callout")).toBeVisible();
 
   await trigger(page, "phase_two");
   await expect(page.locator(".phase-mark")).toHaveText("II");
@@ -91,6 +100,28 @@ test("QA can inspect every release-critical state", async ({ page }) => {
 
   await trigger(page, "victory");
   await expect(page.locator(".result-title")).toHaveText("THE ORACLE FALLS SILENT");
+});
+
+test("renders warning, imminent, and release feedback for an attack", async ({ page }) => {
+  await page.evaluate(() => {
+    (window as any).__SOULLOOM__.pause();
+    (window as any).__SOULLOOM__.dismissIntro();
+    (window as any).__SOULLOOM__.trigger("sweep");
+  });
+  const sceneUi = page.locator("[data-scene-ui]");
+  await expect(sceneUi).toHaveAttribute("data-attack-feedback-stage", "warning");
+
+  await page.evaluate(() => (window as any).__SOULLOOM__.step(500));
+  await page.waitForFunction(() => (
+    (window as any).__SOULLOOM__.getSnapshot().combat.boss.attack?.elapsed >= 0.48
+  ));
+  await expect(sceneUi).toHaveAttribute("data-attack-feedback-stage", "imminent");
+
+  await page.evaluate(() => (window as any).__SOULLOOM__.step(250));
+  await page.waitForFunction(() => (
+    (window as any).__SOULLOOM__.getSnapshot().combat.boss.attack?.stage === "active"
+  ));
+  await expect(sceneUi).toHaveAttribute("data-attack-feedback-stage", "release");
 });
 
 test("captures the deterministic sweep release frame", async ({ page }) => {
@@ -147,6 +178,20 @@ test("opens only a published run with its release-gated recipe", async ({ page }
     "data-archetype",
     "procession",
   );
+  await expect(page.locator("[data-scene-ui]")).toHaveAttribute("data-visual-family", "generated");
+  await expect(page.locator("[data-scene-ui]")).toHaveAttribute(
+    "data-arena-visual",
+    /^(astral_ruins|obsidian_garden)$/,
+  );
+  await expect(page.locator("[data-scene-ui]")).toHaveAttribute(
+    "data-player-visual",
+    /^(starforged_witness|thorn_wanderer)$/,
+  );
+  await expect(page.locator("[data-scene-ui]")).toHaveAttribute(
+    "data-boss-visual",
+    /^(orrery_beast|iron_seraph)$/,
+  );
+  await expect(page.locator(".boss-name")).toHaveText("VESPER");
 
   await page.goto("/games/unpassed-run");
   await expect(page.locator("#game canvas")).toHaveCount(0);

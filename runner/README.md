@@ -44,12 +44,22 @@ It cannot consolidate child artifacts before a scripted `hermes -z` process
 exits, so the live adapter intentionally uses direct parallel specialist calls.
 
 Hermes must already be installed and configured (`hermes setup --portal` or an
-equivalent provider setup). Optional live settings:
+equivalent provider setup). Live mode is fail-closed and requires an explicit
+provider and model:
 
 ```bash
 SOULLOOM_HERMES_TIMEOUT_MS=30000 npm run studio -- "I smell fear."
 SOULLOOM_HERMES_PROVIDER=openai-api SOULLOOM_HERMES_MODEL=gpt-5.6-terra npm run studio -- "I smell fear."
 ```
+
+Every specialist runs inside Bubblewrap with the user's home directory hidden.
+Only the read-only Hermes installation, Python runtime, and Hermes credential
+file are mounted back into the sandbox. The child receives an empty temporary
+working directory and cleared environment, while Hermes `--safe-mode` disables
+user rules, plugins, MCP servers, and memory. Its explicit `hermes-webhook`
+toolset contains no file, terminal, code-execution, or delegation tools. This
+Linux sandbox requires `/usr/bin/bwrap`; use `SOULLOOM_HERMES_SANDBOX_BIN` only
+when Bubblewrap is installed at another path.
 
 For deterministic offline development, use:
 
@@ -68,8 +78,12 @@ npm run dev
 
 Vite proxies `/api` to `127.0.0.1:8787`. `POST /api/studio/runs` requires an
 `Idempotency-Key`, returns a job immediately, and accepts one production at a
-time. The browser polls the returned `statusUrl`; completed evidence is mirrored
-to Convex before the job becomes complete. `GET /api/health` remains available
+time. The browser enters the returned Control Room immediately and subscribes
+to the protected same-origin event stream, with bounded polling as a
+rolling-deployment fallback. Each durable event and artifact is included while
+production is running. After deterministic QA, the Audio Producer creates
+per-run phase voice and boss music evidence; both are mirrored to Convex before
+the job becomes complete. `GET /api/health` remains available
 for Tunnel health checks. Text input is live; tweet-image OCR is still a
 labelled fixture path.
 

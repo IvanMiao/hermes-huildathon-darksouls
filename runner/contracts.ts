@@ -20,11 +20,19 @@ export const ARTIFACT_KINDS = [
   "EncounterSpec",
   "DraftGameRecipe",
   "QAReport",
+  "VoiceArtifact",
+  "MusicArtifact",
 ] as const;
 
 export type ArtifactKind = (typeof ARTIFACT_KINDS)[number];
 export type SpecialistOwner = "Creative Director" | "Encounter Designer";
 export type QAOwner = ReleaseGateOwner | "Creative Director";
+export type QAStageId =
+  | "encounter_contract"
+  | "recipe_contract"
+  | "combat_autoplay"
+  | "defeat_restart"
+  | "package_behavior";
 export type StudioQACheck = Omit<ReleaseGateCheck, "artifact" | "owner"> & {
   artifact: ReleaseGateCheck["artifact"] | "ThemeSpec";
   owner: QAOwner;
@@ -32,6 +40,7 @@ export type StudioQACheck = Omit<ReleaseGateCheck, "artifact" | "owner"> & {
 export type StudioActor =
   | "Studio Manager"
   | SpecialistOwner
+  | "Audio Producer"
   | "Release QA"
   | "Publisher";
 
@@ -96,12 +105,38 @@ export interface QAReport {
   ownersToRetry: QAOwner[];
 }
 
+export interface VoiceArtifactData {
+  storageId: string;
+  url: string;
+  text: string;
+  model: "eleven_multilingual_v2";
+  source: "elevenlabs_generated";
+  requestId?: string;
+  traceId?: string;
+  characterCost?: number;
+}
+
+export interface MusicArtifactData {
+  storageId: string;
+  url: string;
+  durationMs: number;
+  model: "music_v2";
+  source: "elevenlabs_generated";
+  songId?: string;
+  requestId?: string;
+  traceId?: string;
+  compositionPlan: unknown;
+  direction?: unknown;
+}
+
 export interface ArtifactDataByKind {
   ProductionBrief: ProductionBrief;
   ThemeSpec: ThemeSpec;
   EncounterSpec: EncounterSpec;
   DraftGameRecipe: GameRecipeV0;
   QAReport: QAReport;
+  VoiceArtifact: VoiceArtifactData;
+  MusicArtifact: MusicArtifactData;
 }
 
 export interface ArtifactEnvelope<K extends ArtifactKind = ArtifactKind> {
@@ -125,6 +160,8 @@ export const STUDIO_EVENT_TYPES = [
   "task_completed",
   "artifact_written",
   "fallback_used",
+  "qa_stage_started",
+  "qa_stage_completed",
   "qa_blocked",
   "retry_routed",
   "regression_started",
@@ -145,6 +182,13 @@ export interface StudioEvent {
     version: number;
   };
   owner?: QAOwner;
+  qaStage?: {
+    id: QAStageId;
+    label: string;
+    checkIds: StudioQACheck["id"][];
+    passed?: boolean;
+    durationMs?: number;
+  };
 }
 
 export interface PublishedRelease {

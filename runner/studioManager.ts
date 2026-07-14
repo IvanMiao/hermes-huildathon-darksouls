@@ -9,11 +9,13 @@ import {
   type ProductionBrief,
   type QAReport,
   type SpecialistOwner,
+  type StudioEvent,
   type StudioRunResult,
   type ThemeSpec,
 } from "./contracts";
-import { evaluateReleaseCandidate } from "./qa";
+import { evaluateReleaseCandidateWithStages } from "./qa";
 import { RunStore } from "./runStore";
+import type { RunStoreObserver } from "./runStore";
 import {
   createLocalStudioAdapters,
   createProductionBrief,
@@ -27,7 +29,7 @@ export interface StudioManagerOptions {
   adapters?: StudioAdapters;
 }
 
-export interface StartRunOptions {
+export interface StartRunOptions extends RunStoreObserver {
   runId?: string;
 }
 
@@ -119,6 +121,16 @@ function mergeGameRecipe(
     presentation: {
       motif: theme.motif,
       cameraMood: theme.cameraMood,
+      music: {
+        url: `/runs/${runId}/music.mp3`,
+        durationMs: 30_000,
+        sections: {
+          phaseOneLoopStartMs: 3_000,
+          phaseTwoStartMs: 14_000,
+          phaseTwoLoopStartMs: 17_000,
+          aftermathStartMs: 27_000,
+        },
+      },
     },
   };
 }
@@ -143,7 +155,10 @@ export class HermesStudioManager {
   async start(inputText: string, options: StartRunOptions = {}): Promise<StudioRunResult> {
     const brief = createProductionBrief(inputText);
     const runId = options.runId ?? createRunId(brief);
-    const store = await RunStore.create(this.runsRoot, runId);
+    const store = await RunStore.create(this.runsRoot, runId, {
+      onEvent: options.onEvent,
+      onArtifact: options.onArtifact,
+    });
     await store.appendEvent({
       actor: "Studio Manager",
       type: "run_started",
@@ -381,17 +396,39 @@ export class HermesStudioManager {
       status: "started",
       summary: regression ? "Regression QA started." : "Release QA started.",
     });
-    const report = evaluateReleaseCandidate(
+    const stageEvents: Promise<StudioEvent>[] = [];
+    const execution = evaluateReleaseCandidateWithStages(
       recipe,
       encounter,
       brief.seed,
       regression,
+      {
+        onStageStarted: (stage) => {
+          stageEvents.push(store.appendEvent({
+            actor: "Release QA",
+            type: "qa_stage_started",
+            status: "started",
+            summary: `${stage.label} started.`,
+            qaStage: stage,
+          }));
+        },
+        onStageCompleted: (stage) => {
+          stageEvents.push(store.appendEvent({
+            actor: "Release QA",
+            type: "qa_stage_completed",
+            status: stage.passed ? "passed" : "failed",
+            summary: `${stage.label} ${stage.passed ? "passed" : "failed"} in ${stage.durationMs.toFixed(2)}ms.`,
+            qaStage: stage,
+          }));
+        },
+      },
     );
+    await Promise.all(stageEvents);
     return store.writeArtifact({
       kind: "QAReport",
       actor: "Release QA",
       source: { mode: "generated" },
-      data: report,
+      data: execution.report,
     });
   }
 }

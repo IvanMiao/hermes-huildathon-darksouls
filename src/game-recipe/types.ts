@@ -14,6 +14,17 @@ export type CameraMood = (typeof CAMERA_MOODS)[number];
 
 export type AttackOrder = [AttackType, ...AttackType[]];
 
+export interface BattleMusicSpec {
+  url: string;
+  durationMs: number;
+  sections: {
+    phaseOneLoopStartMs: number;
+    phaseTwoStartMs: number;
+    phaseTwoLoopStartMs: number;
+    aftermathStartMs: number;
+  };
+}
+
 export interface GameRecipeV0 {
   version: 1;
   runId: string;
@@ -40,5 +51,6 @@ export interface GameRecipeV0 {
   presentation: {
     motif: string;
     cameraMood: CameraMood;
+    music: BattleMusicSpec;
   };
 }

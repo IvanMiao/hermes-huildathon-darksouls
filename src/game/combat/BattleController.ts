@@ -28,6 +28,7 @@ export interface BossAttackState {
 export type CombatEvent =
   | { type: "player_strike"; connected: boolean }
   | { type: "player_dodge" }
+  | { type: "perfect_dodge"; attack: AttackType }
   | { type: "player_hit"; damage: number }
   | { type: "boss_attack_started"; attack: AttackType }
   | { type: "phase_two" }
@@ -78,6 +79,8 @@ const DODGE_INVULNERABILITY = 0.29;
 const DODGE_COOLDOWN = 0.7;
 const DODGE_SPEED = 9.2;
 const CHARGE_SPEED = 9.6;
+export const SWEEP_ARC_RADIANS = Math.PI * 0.78;
+const SWEEP_RANGE = 2.45;
 
 const NO_INPUT: CombatInput = {
   movement: { x: 0, z: 0 },
@@ -101,6 +104,29 @@ function normalize(vector: Vec2, fallback: Vec2 = { x: 0, z: 1 }): Vec2 {
 
 function distance(a: Vec2, b: Vec2): number {
   return Math.hypot(a.x - b.x, a.z - b.z);
+}
+
+function doesSweepHit(attack: BossAttackState, bossPosition: Vec2, playerPosition: Vec2): boolean {
+  const playerOffset = {
+    x: playerPosition.x - bossPosition.x,
+    z: playerPosition.z - bossPosition.z,
+  };
+  const playerDistance = length(playerOffset);
+  if (playerDistance > SWEEP_RANGE) {
+    return false;
+  }
+  if (playerDistance < 0.0001) {
+    return true;
+  }
+
+  const attackDirection = normalize({
+    x: attack.target.x - bossPosition.x,
+    z: attack.target.z - bossPosition.z,
+  });
+  const playerDirection = normalize(playerOffset);
+  const alignment = attackDirection.x * playerDirection.x
+    + attackDirection.z * playerDirection.z;
+  return alignment >= Math.cos(SWEEP_ARC_RADIANS / 2);
 }
 
 function clampToArena(position: Vec2, arenaRadius: number): void {
@@ -378,6 +404,7 @@ export class BattleController {
 
     attack.hasHit = true;
     if (this.state.player.invulnerableRemaining > 0) {
+      events.push({ type: "perfect_dodge", attack: attack.type });
       return;
     }
 
@@ -405,7 +432,10 @@ export class BattleController {
     if (attack.type === "nova") {
       return doesNovaHit(this.recipe, this.state.phase, playerDistance);
     }
-    return playerDistance <= (attack.type === "sweep" ? 2.45 : 0.72);
+    if (attack.type === "sweep") {
+      return doesSweepHit(attack, this.state.boss.position, this.state.player.position);
+    }
+    return playerDistance <= 0.72;
   }
 }
 

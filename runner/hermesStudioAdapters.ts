@@ -10,6 +10,10 @@ import {
   createLocalStudioAdapters,
   type StudioAdapters,
 } from "./specialists";
+import {
+  createHermesSandboxInvocation,
+  resolveHermesSandboxLayout,
+} from "./hermesSandbox";
 
 const execFileAsync = promisify(execFile);
 
@@ -20,7 +24,6 @@ type HermesInvoker = (prompt: string) => Promise<string>;
 
 export interface HermesStudioAdapterOptions {
   command?: string;
-  cwd?: string;
   timeoutMs?: number;
   provider?: string;
   model?: string;
@@ -75,28 +78,48 @@ function createHermesInvoker(options: HermesStudioAdapterOptions): HermesInvoker
   if (options.invoke) {
     return options.invoke;
   }
-  const command = options.command ?? process.env.HERMES_BIN ?? "hermes";
-  const cwd = options.cwd ?? process.cwd();
+  const configuredCommand = options.command ?? process.env.HERMES_BIN;
   const timeoutMs = options.timeoutMs ?? DEFAULT_HERMES_TIMEOUT_MS;
 
   return async (prompt) => {
-    const args = ["-z", prompt, "--toolsets", "file", "--ignore-rules"];
     const provider = options.provider ?? process.env.SOULLOOM_HERMES_PROVIDER;
     const model = options.model ?? process.env.SOULLOOM_HERMES_MODEL;
-    if (provider) {
-      args.push("--provider", provider);
+    if (!provider || !model) {
+      throw new Error(
+        "Isolated Hermes requires explicit SOULLOOM_HERMES_PROVIDER and SOULLOOM_HERMES_MODEL settings.",
+      );
     }
-    if (model) {
-      args.push("--model", model);
-    }
-    const { stdout } = await execFileAsync(command, args, {
-      cwd,
+    const hermesArgs = createIsolatedHermesArguments(prompt, provider, model);
+    const sandbox = createHermesSandboxInvocation(
+      resolveHermesSandboxLayout(configuredCommand),
+      hermesArgs,
+    );
+    const { stdout } = await execFileAsync(sandbox.command, sandbox.args, {
+      cwd: "/",
       timeout: timeoutMs,
       maxBuffer: MAX_HERMES_OUTPUT_BYTES,
       encoding: "utf8",
     });
     return stdout;
   };
+}
+
+export function createIsolatedHermesArguments(
+  prompt: string,
+  provider: string,
+  model: string,
+): string[] {
+  return [
+    "-z",
+    prompt,
+    "--toolsets",
+    "hermes-webhook",
+    "--safe-mode",
+    "--provider",
+    provider,
+    "--model",
+    model,
+  ];
 }
 
 function generationPrompt(

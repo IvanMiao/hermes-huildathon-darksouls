@@ -14,6 +14,7 @@ const ALLOWED_ROUTES: ReadonlyArray<{
   { method: "GET", path: /^\/api\/health$/ },
   { method: "POST", path: /^\/api\/studio\/runs$/ },
   { method: "GET", path: /^\/api\/studio\/runs\/[0-9a-f-]{36}$/ },
+  { method: "GET", path: /^\/api\/studio\/runs\/[0-9a-f-]{36}\/stream$/ },
 ];
 
 function jsonResponse(status: number, body: unknown): Response {
@@ -75,12 +76,14 @@ export async function proxyRunnerRequest(
   }
 
   try {
+    const isEventStream = requestUrl.pathname.endsWith("/stream");
+    if (isEventStream) headers.set("Accept", "text/event-stream");
     const upstream = await fetcher(upstreamUrl, {
       method: request.method,
       headers,
       body: request.method === "POST" ? request.body : undefined,
       redirect: "manual",
-      signal: AbortSignal.timeout(15_000),
+      signal: isEventStream ? request.signal : AbortSignal.timeout(15_000),
     });
     const responseHeaders = new Headers({
       "Cache-Control": "no-store",

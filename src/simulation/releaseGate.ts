@@ -36,6 +36,30 @@ export interface ReleaseGateReport {
   checks: ReleaseGateCheck[];
 }
 
+export type ReleaseGateStageId =
+  | "recipe_contract"
+  | "combat_autoplay"
+  | "defeat_restart"
+  | "package_behavior";
+
+export interface ReleaseGateStage {
+  id: ReleaseGateStageId;
+  label: string;
+  checkIds: ReleaseGateCheck["id"][];
+  passed: boolean;
+  durationMs: number;
+}
+
+export interface ReleaseGateStageObserver {
+  onStageStarted?: (stage: Omit<ReleaseGateStage, "passed" | "durationMs">) => void;
+  onStageCompleted?: (stage: ReleaseGateStage) => void;
+}
+
+export interface ReleaseGateExecution {
+  report: ReleaseGateReport;
+  stages: ReleaseGateStage[];
+}
+
 const FIXED_STEP = 1 / 60;
 const MAX_FIGHT_SECONDS = 90;
 
@@ -231,18 +255,87 @@ function failedLegalRecipeReport(seed: number): ReleaseGateReport {
   return { passed: false, seed, simulatedSeconds: 0, checks };
 }
 
-/** Runs the deterministic, headless release checks against the real combat state machine. */
-export function runReleaseGate(input: unknown, seed = 0x51_4c_4d): ReleaseGateReport {
-  if (!isGameRecipeV0(input)) {
-    return failedLegalRecipeReport(seed);
+function runStage<T>(
+  stages: ReleaseGateStage[],
+  observer: ReleaseGateStageObserver,
+  definition: Omit<ReleaseGateStage, "passed" | "durationMs">,
+  execute: () => T,
+  didPass: (result: T) => boolean,
+): T {
+  observer.onStageStarted?.(definition);
+  const startedAt = performance.now();
+  const result = execute();
+  const stage: ReleaseGateStage = {
+    ...definition,
+    passed: didPass(result),
+    durationMs: Math.max(0, performance.now() - startedAt),
+  };
+  stages.push(stage);
+  observer.onStageCompleted?.(stage);
+  return result;
+}
+
+/** Runs the deterministic gate and reports the real work performed by each QA stage. */
+export function runReleaseGateWithStages(
+  input: unknown,
+  seed = 0x51_4c_4d,
+  observer: ReleaseGateStageObserver = {},
+): ReleaseGateExecution {
+  const stages: ReleaseGateStage[] = [];
+  const legalRecipe = runStage(
+    stages,
+    observer,
+    {
+      id: "recipe_contract",
+      label: "Recipe contract",
+      checkIds: ["legal_recipe"],
+    },
+    () => isGameRecipeV0(input),
+    Boolean,
+  );
+  if (!legalRecipe) {
+    return { report: failedLegalRecipeReport(seed), stages };
   }
 
-  const victoryRun = simulateVictory(input, seed);
+  const recipe = input as GameRecipeV0;
+  const victoryRun = runStage(
+    stages,
+    observer,
+    {
+      id: "combat_autoplay",
+      label: "Combat autoplay",
+      checkIds: ["phase_two_reachable", "boss_defeatable", "voice_trigger_reachable"],
+    },
+    () => simulateVictory(recipe, seed),
+    ({ events, controller }) => events.some(({ type }) => type === "phase_two")
+      && controller.state.outcome === "victory"
+      && voiceTriggerWasReached(recipe.boss.voice.trigger, events),
+  );
   const reachedPhaseTwo = victoryRun.events.some(({ type }) => type === "phase_two");
   const defeatedBoss = victoryRun.controller.state.outcome === "victory";
-  const deathRestartPassed = simulateDeathAndRestart(input, seed);
-  const voiceReached = voiceTriggerWasReached(input.boss.voice.trigger, victoryRun.events);
-  const packageRule = verifyPackageRule(input);
+  const voiceReached = voiceTriggerWasReached(recipe.boss.voice.trigger, victoryRun.events);
+  const deathRestartPassed = runStage(
+    stages,
+    observer,
+    {
+      id: "defeat_restart",
+      label: "Defeat and restart",
+      checkIds: ["death_restart"],
+    },
+    () => simulateDeathAndRestart(recipe, seed),
+    Boolean,
+  );
+  const packageRule = runStage(
+    stages,
+    observer,
+    {
+      id: "package_behavior",
+      label: "Encounter package behavior",
+      checkIds: ["package_rule_active"],
+    },
+    () => verifyPackageRule(recipe),
+    ({ passed }) => passed,
+  );
 
   const checks: ReleaseGateCheck[] = [
     {
@@ -285,8 +378,8 @@ export function runReleaseGate(input: unknown, seed = 0x51_4c_4d): ReleaseGateRe
       artifact: "VoiceArtifact",
       owner: "Audio Producer",
       message: voiceReached
-        ? `Configured voice trigger '${input.boss.voice.trigger}' was reached.`
-        : `Configured voice trigger '${input.boss.voice.trigger}' was not reached.`,
+        ? `Configured voice trigger '${recipe.boss.voice.trigger}' was reached.`
+        : `Configured voice trigger '${recipe.boss.voice.trigger}' was not reached.`,
     },
     {
       id: "package_rule_active",
@@ -298,9 +391,17 @@ export function runReleaseGate(input: unknown, seed = 0x51_4c_4d): ReleaseGateRe
   ];
 
   return {
-    passed: checks.every(({ passed }) => passed),
-    seed,
-    simulatedSeconds: victoryRun.seconds,
-    checks,
+    report: {
+      passed: checks.every(({ passed }) => passed),
+      seed,
+      simulatedSeconds: victoryRun.seconds,
+      checks,
+    },
+    stages,
   };
+}
+
+/** Runs the deterministic, headless release checks against the real combat state machine. */
+export function runReleaseGate(input: unknown, seed = 0x51_4c_4d): ReleaseGateReport {
+  return runReleaseGateWithStages(input, seed).report;
 }

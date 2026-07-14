@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { startStudioRun } from "./studioApi";
+import { createStudioRun, startStudioRun } from "./studioApi";
 
 const result = {
   runId: "live-run",
@@ -14,18 +14,39 @@ describe("Studio API client", () => {
     const fetcher = vi.fn()
       .mockResolvedValueOnce(Response.json({
         requestId,
+        runId: requestId,
+        inputText: "I smell fear.",
         state: "queued",
         statusUrl: `/api/studio/runs/${requestId}`,
+        controlRoomUrl: `/control-room/${requestId}?job=1`,
+        submittedAt: "2026-07-11T12:00:00.000Z",
+        updatedAt: "2026-07-11T12:00:00.000Z",
+        events: [],
+        artifacts: [],
       }, { status: 202 }))
       .mockResolvedValueOnce(Response.json({
         requestId,
+        runId: requestId,
+        inputText: "I smell fear.",
         state: "running",
         statusUrl: `/api/studio/runs/${requestId}`,
+        controlRoomUrl: `/control-room/${requestId}?job=1`,
+        submittedAt: "2026-07-11T12:00:00.000Z",
+        updatedAt: "2026-07-11T12:00:01.000Z",
+        events: [],
+        artifacts: [],
       }))
       .mockResolvedValueOnce(Response.json({
         requestId,
+        runId: requestId,
+        inputText: "I smell fear.",
         state: "completed",
         statusUrl: `/api/studio/runs/${requestId}`,
+        controlRoomUrl: `/control-room/${requestId}?job=1`,
+        submittedAt: "2026-07-11T12:00:00.000Z",
+        updatedAt: "2026-07-11T12:00:02.000Z",
+        events: [],
+        artifacts: [],
         result,
       }));
     const states: string[] = [];
@@ -48,13 +69,27 @@ describe("Studio API client", () => {
     const failedFetcher = vi.fn()
       .mockResolvedValueOnce(Response.json({
         requestId,
+        runId: requestId,
+        inputText: "I smell fear.",
         state: "queued",
         statusUrl: `/api/studio/runs/${requestId}`,
+        controlRoomUrl: `/control-room/${requestId}?job=1`,
+        submittedAt: "2026-07-11T12:00:00.000Z",
+        updatedAt: "2026-07-11T12:00:00.000Z",
+        events: [],
+        artifacts: [],
       }, { status: 202 }))
       .mockResolvedValueOnce(Response.json({
         requestId,
+        runId: requestId,
+        inputText: "I smell fear.",
         state: "failed",
         statusUrl: `/api/studio/runs/${requestId}`,
+        controlRoomUrl: `/control-room/${requestId}?job=1`,
+        submittedAt: "2026-07-11T12:00:00.000Z",
+        updatedAt: "2026-07-11T12:00:01.000Z",
+        events: [],
+        artifacts: [],
         error: "Hermes could not start.",
       }));
     await expect(startStudioRun("I smell fear.", {
@@ -66,5 +101,27 @@ describe("Studio API client", () => {
     await expect(startStudioRun("I smell fear.", {
       fetcher: synchronousFetcher,
     })).resolves.toEqual(result);
+  });
+
+  it("returns the Control Room route immediately without waiting for completion", async () => {
+    const requestId = "12345678-1234-1234-1234-123456789abc";
+    const fetcher = vi.fn(async () => Response.json({
+      requestId,
+      runId: requestId,
+      inputText: "I smell fear.",
+      state: "queued",
+      statusUrl: `/api/studio/runs/${requestId}`,
+      controlRoomUrl: `/control-room/${requestId}?job=1`,
+      submittedAt: "2026-07-11T12:00:00.000Z",
+      updatedAt: "2026-07-11T12:00:00.000Z",
+      events: [],
+      artifacts: [],
+    }, { status: 202 }));
+
+    await expect(createStudioRun("I smell fear.", { fetcher })).resolves.toMatchObject({
+      state: "queued",
+      controlRoomUrl: `/control-room/${requestId}?job=1`,
+    });
+    expect(fetcher).toHaveBeenCalledOnce();
   });
 });

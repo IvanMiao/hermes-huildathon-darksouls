@@ -1,11 +1,34 @@
 import { BOSS_SPEC_BOUNDS } from "../src/boss-spec/schema";
 import type { GameRecipeV0 } from "../src/game-recipe/types";
-import { runReleaseGate } from "../src/simulation/releaseGate";
+import {
+  runReleaseGateWithStages,
+  type ReleaseGateStage,
+} from "../src/simulation/releaseGate";
 import {
   ARTIFACT_SCHEMA_VERSION,
   type EncounterSpec,
   type QAReport,
+  type QAStageId,
+  type StudioQACheck,
 } from "./contracts";
+
+export interface StudioQAStage {
+  id: QAStageId;
+  label: string;
+  checkIds: StudioQACheck["id"][];
+  passed: boolean;
+  durationMs: number;
+}
+
+export interface StudioQAStageObserver {
+  onStageStarted?: (stage: Omit<StudioQAStage, "passed" | "durationMs">) => void;
+  onStageCompleted?: (stage: StudioQAStage) => void;
+}
+
+export interface StudioQAExecution {
+  report: QAReport;
+  stages: StudioQAStage[];
+}
 
 function encounterFailures(encounter: EncounterSpec): string[] {
   const failures = encounter.attacks.flatMap((attack) => {
@@ -55,27 +78,69 @@ export function evaluateReleaseCandidate(
   seed: number,
   regression: boolean,
 ): QAReport {
+  return evaluateReleaseCandidateWithStages(
+    recipe,
+    encounter,
+    seed,
+    regression,
+  ).report;
+}
+
+function studioStage(stage: ReleaseGateStage): StudioQAStage {
+  return { ...stage };
+}
+
+export function evaluateReleaseCandidateWithStages(
+  recipe: GameRecipeV0,
+  encounter: EncounterSpec,
+  seed: number,
+  regression: boolean,
+  observer: StudioQAStageObserver = {},
+): StudioQAExecution {
+  const stages: StudioQAStage[] = [];
+  const encounterDefinition = {
+    id: "encounter_contract" as const,
+    label: "Encounter contract",
+    checkIds: ["package_rule_active" as const],
+  };
+  observer.onStageStarted?.(encounterDefinition);
+  const encounterStartedAt = performance.now();
   const failures = encounterFailures(encounter);
+  const encounterStage: StudioQAStage = {
+    ...encounterDefinition,
+    passed: failures.length === 0,
+    durationMs: Math.max(0, performance.now() - encounterStartedAt),
+  };
+  stages.push(encounterStage);
+  observer.onStageCompleted?.(encounterStage);
   if (failures.length > 0) {
     return {
-      schemaVersion: ARTIFACT_SCHEMA_VERSION,
-      passed: false,
-      regression,
-      seed,
-      checks: [
-        {
-          id: "package_rule_active",
-          passed: false,
-          artifact: "EncounterSpec",
-          owner: "Encounter Designer",
-          message: failures.join(" "),
-        },
-      ],
-      ownersToRetry: ["Encounter Designer"],
+      report: {
+        schemaVersion: ARTIFACT_SCHEMA_VERSION,
+        passed: false,
+        regression,
+        seed,
+        checks: [
+          {
+            id: "package_rule_active",
+            passed: false,
+            artifact: "EncounterSpec",
+            owner: "Encounter Designer",
+            message: failures.join(" "),
+          },
+        ],
+        ownersToRetry: ["Encounter Designer"],
+      },
+      stages,
     };
   }
 
-  const gate = runReleaseGate(recipe, seed);
+  const gateExecution = runReleaseGateWithStages(recipe, seed, {
+    onStageStarted: observer.onStageStarted,
+    onStageCompleted: (stage) => observer.onStageCompleted?.(studioStage(stage)),
+  });
+  stages.push(...gateExecution.stages.map(studioStage));
+  const gate = gateExecution.report;
   const ownersToRetry = [
     ...new Set(
       gate.checks
@@ -84,11 +149,14 @@ export function evaluateReleaseCandidate(
     ),
   ];
   return {
-    schemaVersion: ARTIFACT_SCHEMA_VERSION,
-    passed: gate.passed,
-    regression,
-    seed,
-    checks: gate.checks,
-    ownersToRetry,
+    report: {
+      schemaVersion: ARTIFACT_SCHEMA_VERSION,
+      passed: gate.passed,
+      regression,
+      seed,
+      checks: gate.checks,
+      ownersToRetry,
+    },
+    stages,
   };
 }

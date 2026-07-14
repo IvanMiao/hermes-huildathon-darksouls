@@ -78,7 +78,6 @@ const DIRECT_BOSS_SPEC: BossSpec = {
   ],
   voice: {
     ...DEFAULT_BOSS_SPEC.voice,
-    url: `/runs/${DIRECT_RUN_ID}/voice.mp3`,
   },
 };
 
@@ -147,6 +146,7 @@ const REPAIR_RECIPE: GameRecipeV0 = {
   presentation: {
     motif: "broken bells, wax seals, ash scripture",
     cameraMood: "watchful",
+    music: structuredClone(DEFAULT_GAME_RECIPE.presentation.music),
   },
 };
 

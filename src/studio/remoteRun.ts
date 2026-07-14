@@ -4,7 +4,8 @@ import type {
   StudioActor,
   StudioEvent,
 } from "../../runner/contracts";
-import { isGameRecipeV0 } from "../game-recipe/normalize";
+import { normalizeGameRecipe } from "../game-recipe/normalize";
+import type { GameRecipeV0 } from "../game-recipe/types";
 import type {
   QAProofCheck,
   StudioArtifactFixture,
@@ -15,6 +16,7 @@ const ACTORS = new Set<StudioActor>([
   "Studio Manager",
   "Creative Director",
   "Encounter Designer",
+  "Audio Producer",
   "Release QA",
   "Publisher",
 ]);
@@ -24,6 +26,8 @@ const EVENT_TYPES = new Set<StudioEvent["type"]>([
   "task_completed",
   "artifact_written",
   "fallback_used",
+  "qa_stage_started",
+  "qa_stage_completed",
   "qa_blocked",
   "retry_routed",
   "regression_started",
@@ -36,12 +40,21 @@ const EVENT_STATUSES = new Set<StudioEvent["status"]>([
   "failed",
   "info",
 ]);
+const QA_STAGE_IDS = new Set([
+  "encounter_contract",
+  "recipe_contract",
+  "combat_autoplay",
+  "defeat_restart",
+  "package_behavior",
+]);
 const ARTIFACT_KINDS = new Set<StudioArtifactFixture["kind"]>([
   "ProductionBrief",
   "ThemeSpec",
   "EncounterSpec",
   "DraftGameRecipe",
   "QAReport",
+  "VoiceArtifact",
+  "MusicArtifact",
 ]);
 const SOURCE_MODES = new Set<ArtifactSource["mode"]>([
   "generated",
@@ -56,17 +69,31 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isStudioEvent(value: unknown): value is StudioEvent {
   if (!isRecord(value)) return false;
-  return typeof value.sequence === "number"
+  const validEvent = typeof value.sequence === "number"
     && typeof value.runId === "string"
     && typeof value.occurredAt === "string"
     && ACTORS.has(value.actor as StudioActor)
     && EVENT_TYPES.has(value.type as StudioEvent["type"])
     && EVENT_STATUSES.has(value.status as StudioEvent["status"])
     && typeof value.summary === "string";
+  if (!validEvent || value.qaStage === undefined) return validEvent;
+  return isRecord(value.qaStage)
+    && QA_STAGE_IDS.has(String(value.qaStage.id))
+    && typeof value.qaStage.label === "string"
+    && Array.isArray(value.qaStage.checkIds)
+    && value.qaStage.checkIds.every((id) => typeof id === "string")
+    && (value.qaStage.passed === undefined || typeof value.qaStage.passed === "boolean")
+    && (value.qaStage.durationMs === undefined || typeof value.qaStage.durationMs === "number");
 }
 
 function artifactSummary(kind: string, version: number, data: unknown): string {
   if (isRecord(data) && typeof data.summary === "string") return data.summary;
+  if (kind === "VoiceArtifact" && isRecord(data) && typeof data.text === "string") {
+    return `Generated phase-two voice: “${data.text}”`;
+  }
+  if (kind === "MusicArtifact" && isRecord(data) && typeof data.durationMs === "number") {
+    return `Generated original boss score · ${(data.durationMs / 1_000).toFixed(0)} seconds.`;
+  }
   return `${kind} v${version} recorded by the live Studio run.`;
 }
 
@@ -126,11 +153,16 @@ export function toLiveStudioRun(value: unknown): StudioRunFixture | null {
     typeof value.runId !== "string"
     || typeof value.inputText !== "string"
     || (value.status !== "published" && value.status !== "release_blocked")
-    || !isGameRecipeV0(value.recipe)
     || !Array.isArray(value.events)
     || !value.events.every(isStudioEvent)
     || !Array.isArray(value.artifacts)
   ) {
+    return null;
+  }
+  let recipe: GameRecipeV0;
+  try {
+    recipe = normalizeGameRecipe(value.recipe);
+  } catch {
     return null;
   }
   const events = value.events;
@@ -159,11 +191,11 @@ export function toLiveStudioRun(value: unknown): StudioRunFixture | null {
   });
   return {
     runId: value.runId,
-    label: `${value.recipe.boss.boss.name}, ${value.recipe.boss.boss.title}`,
+    label: `${recipe.boss.boss.name}, ${recipe.boss.boss.title}`,
     evidenceKind: "live",
     inputText: value.inputText,
     status: value.status,
-    recipe: value.recipe,
+    recipe,
     events,
     artifacts: validArtifacts,
     qaReports,

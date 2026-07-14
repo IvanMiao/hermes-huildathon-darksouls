@@ -102,6 +102,12 @@ repair. Direct specialist calls are required because Hermes v0.18.2
 can consolidate child results. The original 8-second timeout remains the
 offline adapter default; real Hermes CLI runs use a separate 30-second process
 timeout. Both limits are explicit and failures remain labelled fallbacks.
+Live specialist processes are now fail-closed behind Bubblewrap. The user's
+home and project are hidden, only the read-only Hermes runtime and credential
+file are mounted, and each call receives an ephemeral working directory with a
+cleared environment. Hermes additionally runs in `--safe-mode` with the
+`hermes-webhook` toolset, which excludes file, terminal, code-execution, and
+delegation tools. An explicit provider and model are required.
 
 ## P4 — Minimal Studio and Control Room UI (implemented)
 
@@ -132,17 +138,43 @@ instead of inventing proof data.
 The public root route also mounts Studio, with `/studio` retained as a
 compatibility alias. The deterministic P2 battle sandbox lives at `/playground`,
 while published encounters remain behind the `/games/:runId` release gate.
+Live text submissions now enter `/control-room/:runId?job=1` immediately. That
+view consumes a same-origin authenticated SSE snapshot stream, with bounded
+polling only as a rolling-deployment fallback. Dense event bursts are presented
+in timestamp-preserving sequence so QA remains readable without adding fake
+runner delays. Timeline selection drives a step-level Evidence Inspector; live
+mode follows the newest event until a viewer pins an earlier step. A passed,
+mirrored release unlocks `OPEN BOSS FIGHT` as the sole completion CTA.
 
-## P5 — Event-bound ElevenLabs voice
+Deterministic QA now emits explicit encounter-contract, recipe-contract,
+combat-autoplay, defeat/restart, and package-behavior stage events with measured
+durations before the immutable `QAReport` is written. Browser smoke remains the
+separate P2 Playwright gate; it is not mislabelled as part of the in-process P3
+simulation.
 
-**Goal:** Generate one approved original Boss voice line, cache it, preload it, and play it exactly once on `phase_two_enter`; cached fallback is visibly labelled.
+## P5 — Event-bound ElevenLabs audio
 
-**Verify:** ten phase transitions produce ten single voice triggers; missing audio never blocks gameplay.
+**Goal:** Generate one phase-two Boss voice and one original, section-addressable
+dark-fantasy score for every published run. Store both in Convex, expose their
+generation metadata as evidence, and bind their HTTPS URLs into the published
+recipe.
 
-Scaffolded: a Convex Action calls ElevenLabs Flash v2.5, stores the MP3 in
-Convex File Storage, and the runtime preloads HTTPS voice artifacts for a
-single `phase_two` playback. Live credentials and the ten-transition audio gate
-are still pending, so P5 is not yet complete.
+**Verify:** ten phase transitions produce ten single voice triggers; phase one,
+phase two, and aftermath seek to the declared music sections; a new run cannot
+unlock its game route until both audio artifacts are mirrored.
+
+Implemented: a Convex Action calls ElevenLabs Multilingual v2 with an explicit
+high-fidelity character-voice profile, stores the MP3 in Convex File Storage,
+and the runtime preloads HTTPS voice artifacts for a single `phase_two`
+playback. Production credential state is managed outside the repository; the
+FABLE's approved cached demo line uses the user-selected Eleven v3 dramatic
+render. A second Convex Action composes a 30-second Music v2 instrumental from
+five fixed-duration chunks, customized from the run's controlled archetype,
+camera mood, and arena vocabulary. Free-form boss and motif text remain in the
+evidence direction but do not enter the provider prompt. `VoiceArtifact` and `MusicArtifact` include model,
+request/song identifiers, storage IDs, URLs, and generation plans in Control
+Room evidence. Cached music remains only for the playground and historical
+recipe migration; it is not presented as new-run evidence.
 
 ## P6 — Convex evidence layer and Cloudflare delivery
 
@@ -157,10 +189,16 @@ Order:
 
 **Verify:** three published historical games remain playable while the local runner is offline.
 
-Scaffolded: the CLI can mirror one complete P3 result into a minimal indexed
-`studioRuns` evidence table, and `/games/:runId` prefers a published Convex
-recipe before falling back to local fixtures. Realtime Control Room
-subscriptions, production deployment, and Cloudflare delivery remain pending.
+Implemented in code: the CLI and HTTP runner mirror complete production results
+into `studioRuns`; `/games/:runId` prefers the published Convex recipe and the
+Control Room can replay durable mirrored evidence. Active jobs stream ephemeral
+progress through the protected runner route, then Convex becomes the durable
+source after completion. The runner API is asynchronous, idempotent,
+bearer-protected, and single-concurrency. A same-origin Pages
+Function holds the runner and Cloudflare Access secrets and proxies only the
+allowlisted `/api/*` surface through the Tunnel. Production dashboard bindings,
+the fixed Tunnel hostname, and the three-history offline acceptance gate remain
+deployment tasks; see `CLOUDFLARE_DEPLOYMENT.md`.
 
 ## P7 — Demo polish and freeze
 
@@ -169,10 +207,18 @@ Only after P1–P6 gates pass:
 1. Phase-two freeze frame, light shift, halo and nova.
 2. 60–80 ms hit stop, boss flash and restrained camera shake.
 3. Dodge trail and perfect-dodge feedback.
-4. Cached house music and audio ducking.
+4. Per-run generated music and audio ducking.
 5. Record fallback video and rehearse the two-minute path.
 
-Do not add mobile controls, arbitrary code generation, generated sprite sheets, dynamic music in the critical path, inventory, progression, multiple bosses or a fourth attack.
+FABLE now binds the cached Music v2 house score to combat state: phase one and
+phase two loop their authored sections, the transition and aftermath retain
+their dedicated cues, and the v3 voice ducks the score by roughly 9 dB. Audio
+starts on the first battle interaction to comply with browser autoplay policy.
+
+Do not add mobile controls, arbitrary code generation, generated sprite sheets,
+runtime-adaptive music synthesis, inventory, progression, multiple bosses or a
+fourth attack. Per-run Music v2 generation is a release-bound batch artifact,
+not runtime synthesis.
 
 ## Time-box checkpoints
 

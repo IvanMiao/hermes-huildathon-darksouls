@@ -101,10 +101,16 @@ builds. The P3 orchestration core accepts specialist adapters; fixtures remain
 offline and reproducible, while `npm run studio -- "tweet text"` and the browser
 Studio invoke parallel schema-constrained Hermes Creative/Encounter specialists
 through the same Manager-owned artifact boundary.
+Live specialists run in a fail-closed Bubblewrap sandbox: the local home and
+project are hidden, the working directory is ephemeral, inherited environment
+variables are cleared, and Hermes file/terminal/code tools, plugins, MCP, rules,
+and memory are disabled.
 `npm run studio:local -- "tweet text"` retains the deterministic path, while
 `npm run studio:server` exposes the live workflow through an authenticated,
 asynchronous local API. Cloudflare Pages proxies `/api/*` to its protected
-Tunnel without placing runner or Access tokens in the Vite bundle. The Control
-Room reads completed live evidence from Convex and keeps deterministic fixtures
-for offline replay. See [CLOUDFLARE_DEPLOYMENT.md](./CLOUDFLARE_DEPLOYMENT.md)
+Tunnel without placing runner or Access tokens in the Vite bundle. A submitted
+run enters the Control Room immediately; durable events and artifacts appear as
+Hermes produces them. Passing QA unlocks `OPEN BOSS FIGHT` without automatically
+opening the game. Deterministic fixtures remain available for offline replay.
+See [CLOUDFLARE_DEPLOYMENT.md](./CLOUDFLARE_DEPLOYMENT.md)
 for the production configuration and acceptance gate.

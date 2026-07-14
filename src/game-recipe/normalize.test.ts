@@ -11,6 +11,16 @@ function recipeWith(overrides: Partial<GameRecipeV0>): GameRecipeV0 {
 }
 
 describe("GameRecipeV0", () => {
+  it("upgrades historical recipes with the cached score contract", () => {
+    const legacy = structuredClone(DEFAULT_GAME_RECIPE) as Record<string, any>;
+    delete legacy.presentation.music;
+
+    expect(normalizeGameRecipe(legacy).presentation.music).toMatchObject({
+      durationMs: 64_000,
+      url: expect.stringMatching(/^https:\/\//),
+    });
+  });
+
   it("accepts the default Duel recipe", () => {
     expect(normalizeGameRecipe(DEFAULT_GAME_RECIPE)).toEqual(DEFAULT_GAME_RECIPE);
   });

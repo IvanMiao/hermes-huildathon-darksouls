@@ -8,6 +8,8 @@ import {
   type ArtifactSource,
   type AnyArtifactEnvelope,
   type PublishedRelease,
+  type QAStageId,
+  type StudioQACheck,
   type StudioActor,
   type StudioEvent,
 } from "./contracts";
@@ -22,6 +24,13 @@ interface EventInput {
   summary: string;
   artifact?: StudioEvent["artifact"];
   owner?: StudioEvent["owner"];
+  qaStage?: {
+    id: QAStageId;
+    label: string;
+    checkIds: StudioQACheck["id"][];
+    passed?: boolean;
+    durationMs?: number;
+  };
 }
 
 interface WriteArtifactInput<K extends ArtifactKind> {
@@ -29,6 +38,11 @@ interface WriteArtifactInput<K extends ArtifactKind> {
   actor: StudioActor;
   source: ArtifactSource;
   data: ArtifactDataByKind[K];
+}
+
+export interface RunStoreObserver {
+  onEvent?: (event: StudioEvent) => void;
+  onArtifact?: (artifact: AnyArtifactEnvelope) => void;
 }
 
 function parseJson<T>(contents: string): T {
@@ -47,18 +61,23 @@ export class RunStore {
   private constructor(
     readonly runId: string,
     rootDirectory: string,
+    private readonly observer: RunStoreObserver = {},
   ) {
     this.runDirectory = resolve(rootDirectory, runId);
     this.artifactsDirectory = join(this.runDirectory, "artifacts");
     this.eventsPath = join(this.runDirectory, "events.jsonl");
   }
 
-  static async create(rootDirectory: string, runId: string): Promise<RunStore> {
+  static async create(
+    rootDirectory: string,
+    runId: string,
+    observer: RunStoreObserver = {},
+  ): Promise<RunStore> {
     if (!SAFE_RUN_ID.test(runId)) {
       throw new Error(`Unsafe run id '${runId}'.`);
     }
 
-    const store = new RunStore(runId, rootDirectory);
+    const store = new RunStore(runId, rootDirectory, observer);
     await mkdir(store.artifactsDirectory, { recursive: true });
     return store;
   }
@@ -77,6 +96,7 @@ export class RunStore {
     });
     this.eventQueue = pendingWrite.catch(() => undefined);
     await pendingWrite;
+    this.observer.onEvent?.(structuredClone(event));
     return event;
   }
 
@@ -119,6 +139,7 @@ export class RunStore {
       summary: `${input.kind} v${version} recorded (${input.source.mode}).`,
       artifact: { kind: input.kind, version },
     });
+    this.observer.onArtifact?.(structuredClone(artifact) as AnyArtifactEnvelope);
     return artifact;
   }
 
@@ -169,6 +190,11 @@ export class RunStore {
   }
 
   async readArtifacts(): Promise<AnyArtifactEnvelope[]> {
+    const eventOrder = new Map(
+      (await this.readEvents()).flatMap((event) => event.artifact
+        ? [[`${event.artifact.kind}:v${event.artifact.version}`, event.sequence] as const]
+        : []),
+    );
     const kinds = await readdir(this.artifactsDirectory, { withFileTypes: true });
     const artifacts = await Promise.all(
       kinds
@@ -188,6 +214,12 @@ export class RunStore {
 
     return artifacts
       .flat()
-      .sort((left, right) => left.createdAt.localeCompare(right.createdAt));
+      .sort((left, right) => {
+        const leftSequence = eventOrder.get(`${left.kind}:v${left.version}`)
+          ?? Number.MAX_SAFE_INTEGER;
+        const rightSequence = eventOrder.get(`${right.kind}:v${right.version}`)
+          ?? Number.MAX_SAFE_INTEGER;
+        return leftSequence - rightSequence || left.id.localeCompare(right.id);
+      });
   }
 }

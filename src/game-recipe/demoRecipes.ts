@@ -22,6 +22,7 @@ const PROCESSION_RECIPE = {
   presentation: {
     motif: "a closing ring of extinguished vows",
     cameraMood: "watchful",
+    music: structuredClone(DEFAULT_GAME_RECIPE.presentation.music),
   },
 } satisfies GameRecipeV0;
 
@@ -46,6 +47,7 @@ const REVELATION_RECIPE = {
   presentation: {
     motif: "an ivory boundary that condemns its own center",
     cameraMood: "ceremonial",
+    music: structuredClone(DEFAULT_GAME_RECIPE.presentation.music),
   },
 } satisfies GameRecipeV0;
 
