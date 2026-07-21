@@ -17,7 +17,7 @@ describe("GameRecipeV0", () => {
 
     expect(normalizeGameRecipe(legacy).presentation.music).toMatchObject({
       durationMs: 64_000,
-      url: expect.stringMatching(/^https:\/\//),
+      url: DEFAULT_GAME_RECIPE.presentation.music.url,
     });
   });
 

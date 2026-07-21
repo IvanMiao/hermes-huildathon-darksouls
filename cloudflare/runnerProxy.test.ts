@@ -73,4 +73,17 @@ describe("Cloudflare runner proxy", () => {
     const [, init] = fetcher.mock.calls[0] ?? [];
     expect(new Headers(init?.headers).get("accept")).toBe("text/event-stream");
   });
+
+  it("normalizes Tunnel and runner server failures to a stable 502 contract", async () => {
+    const response = await proxyRunnerRequest(
+      new Request("https://soulloom.pages.dev/api/health"),
+      environment,
+      async () => new Response("error code: 1016", { status: 530 }),
+    );
+
+    expect(response.status).toBe(502);
+    expect(await response.json()).toEqual({
+      error: "Studio runner is unavailable.",
+    });
+  });
 });

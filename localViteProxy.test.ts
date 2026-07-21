@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { createLocalApiProxy } from "./vite.config";
+import {
+  createLocalApiProxy,
+  createLocalEvidenceProxy,
+} from "./vite.config";
 
 describe("local Vite API proxy", () => {
   it("keeps the runner token on the server and injects it as a bearer header", () => {
@@ -15,5 +18,13 @@ describe("local Vite API proxy", () => {
     const proxy = createLocalApiProxy();
 
     expect(proxy.headers).toBeUndefined();
+  });
+
+  it("routes local evidence reads to the configured Pages deployment", () => {
+    expect(createLocalEvidenceProxy("https://soulloom.pages.dev/")).toEqual({
+      target: "https://soulloom.pages.dev",
+      changeOrigin: true,
+    });
+    expect(createLocalEvidenceProxy()).toBeUndefined();
   });
 });

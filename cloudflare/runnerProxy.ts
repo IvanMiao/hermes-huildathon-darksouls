@@ -85,6 +85,10 @@ export async function proxyRunnerRequest(
       redirect: "manual",
       signal: isEventStream ? request.signal : AbortSignal.timeout(15_000),
     });
+    if (upstream.status >= 500) {
+      console.error(`Studio runner returned upstream status ${upstream.status}.`);
+      return jsonResponse(502, { error: "Studio runner is unavailable." });
+    }
     const responseHeaders = new Headers({
       "Cache-Control": "no-store",
       "X-Content-Type-Options": "nosniff",

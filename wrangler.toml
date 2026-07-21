@@ -1,0 +1,24 @@
+# Synced from the existing Pages project before adding durable evidence bindings.
+name = "soulloom-buildathon"
+pages_build_output_dir = "./dist"
+compatibility_date = "2026-07-11"
+
+[[d1_databases]]
+binding = "SOULLOOM_DB"
+database_name = "soulloom-evidence"
+database_id = "ae10a510-1c9d-4772-9e7b-f5cc08260e57"
+
+[[r2_buckets]]
+binding = "SOULLOOM_ARTIFACTS"
+bucket_name = "soulloom-artifacts"
+
+[env.production]
+
+[[env.production.d1_databases]]
+binding = "SOULLOOM_DB"
+database_name = "soulloom-evidence"
+database_id = "ae10a510-1c9d-4772-9e7b-f5cc08260e57"
+
+[[env.production.r2_buckets]]
+binding = "SOULLOOM_ARTIFACTS"
+bucket_name = "soulloom-artifacts"

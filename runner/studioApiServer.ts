@@ -26,7 +26,7 @@ export interface CompletedStudioRun {
   agentMode: StudioAgentMode;
   qaPassed: boolean;
   fallbacks: number;
-  convexEvidence: "disabled" | "mirrored" | "failed";
+  cloudflareEvidence: "disabled" | "mirrored" | "failed";
   gameUrl: string | null;
   controlRoomUrl: string;
 }

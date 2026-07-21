@@ -1,7 +1,7 @@
 import {
-  proxyRunnerRequest,
-  type RunnerProxyEnvironment,
-} from "../../cloudflare/runnerProxy";
+  routeCloudflareRequest,
+  type CloudflareAppEnvironment,
+} from "../../cloudflare/appRouter";
 
 interface PagesFunctionContext<Environment> {
   request: Request;
@@ -9,7 +9,7 @@ interface PagesFunctionContext<Environment> {
 }
 
 export function onRequest(
-  context: PagesFunctionContext<RunnerProxyEnvironment>,
+  context: PagesFunctionContext<CloudflareAppEnvironment>,
 ): Promise<Response> {
-  return proxyRunnerRequest(context.request, context.env);
+  return routeCloudflareRequest(context.request, context.env);
 }

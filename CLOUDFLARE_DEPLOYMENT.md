@@ -1,61 +1,77 @@
-# Cloudflare Pages + Tunnel deployment
+# Cloudflare Pages + D1 + R2 + Tunnel deployment
 
-Soulloom keeps the static game durable while Hermes stays on the Studio laptop:
+Soulloom keeps completed games entirely on Cloudflare while the Hermes process
+stays isolated on the Studio laptop:
 
 ```text
 Browser
   -> Cloudflare Pages /api/* Function
-  -> Cloudflare Access service token
-  -> Tunnel hostname
-  -> 127.0.0.1:8787 runner
-  -> Hermes -> Convex / ElevenLabs
+       ├── /api/evidence/* -> D1 run evidence + R2 audio
+       └── /api/studio/*   -> Access -> Tunnel -> local Hermes runner
+
+Local Hermes runner
+  -> protected Pages evidence API
+       -> ElevenLabs -> R2 audio -> D1 completed run
 ```
 
-The Pages Function is only a secret-holding reverse proxy. Hermes, filesystem
-tools, QA, and generated artifacts never execute inside Cloudflare Workers.
+The Tunnel connects only to `127.0.0.1:8787`; it does not expose the laptop's
+filesystem or a container socket. Completed game URLs read D1 and R2 directly,
+so they remain playable when the runner or Tunnel is offline.
 
-## 1. Local runner
+## 1. Create the Cloudflare storage
 
-Copy `.env.example` to `.env.local` and configure the existing Convex values,
-Hermes provider, and a new random runner token:
-
-```text
-SOULLOOM_RUNNER_API_TOKEN=<at-least-32-random-characters>
-```
-
-Start and verify the runner:
+Authenticate Wrangler, create one D1 database and one Standard-class R2 bucket,
+then apply the committed schema:
 
 ```bash
-npm run studio:server
-curl http://127.0.0.1:8787/api/health
+npx wrangler login
+npm run cloudflare:db:create
+npx wrangler r2 bucket create soulloom-artifacts
+npm run cloudflare:db:migrate
 ```
 
-The health endpoint must report `agentMode: "hermes"`. The startup warning about
-an unset API token must not appear in production.
+`migrations/0001_cloudflare_evidence.sql` creates `studio_runs` and
+`generated_audio`. The migration is idempotent and the runner mirrors each run
+under its existing `run_id`.
 
-## 2. Managed Tunnel
+The committed `wrangler.toml` binds both resources for direct deployments:
 
-Create a fixed public hostname such as `studio-api.example.com` and route it to
-`http://127.0.0.1:8787`.
+| Binding | Resource |
+|---|---|
+| `SOULLOOM_DB` | D1 database `soulloom-evidence` |
+| `SOULLOOM_ARTIFACTS` | R2 bucket `soulloom-artifacts` |
 
-Protect that hostname with a Cloudflare Access self-hosted application and a
-`Service Auth` policy. Create one service token for the Pages Function. Do not
-make the Tunnel hostname publicly bypassable.
+If the database or bucket is recreated, update its ID/name in `wrangler.toml`
+before deploying. Dashboard-managed deployments must expose the same binding
+names in both Production and Preview.
 
-## 3. Pages variables and secrets
+Cloudflare's current free allowances are sufficient for a buildathon-scale
+demo, but they are usage limits rather than unlimited hosting. D1 Free includes
+5 million rows read/day, 100,000 rows written/day, and 5 GB total storage. R2
+Standard includes 10 GB-month storage, 1 million Class A operations/month, and
+10 million Class B operations/month; R2 requires enabling its subscription even
+when usage remains inside the free allowance. See Cloudflare's current
+[D1 pricing](https://developers.cloudflare.com/d1/platform/pricing/),
+[R2 pricing](https://developers.cloudflare.com/r2/pricing/), and
+[Pages binding guide](https://developers.cloudflare.com/pages/functions/bindings/)
+before provisioning.
 
-In the existing Pages project, configure Production variables/secrets:
+## 2. Configure the Pages Function
 
-| Name | Type | Value |
+Add these Production secrets and variables:
+
+| Name | Type | Purpose |
 |---|---|---|
-| `VITE_CONVEX_URL` | variable | production `https://*.convex.cloud` URL |
-| `STUDIO_RUNNER_ORIGIN` | variable | `https://studio-api.example.com` |
-| `STUDIO_RUNNER_API_TOKEN` | encrypted secret | same value as runner `.env.local` |
-| `CF_ACCESS_CLIENT_ID` | encrypted secret | Access service token client ID |
-| `CF_ACCESS_CLIENT_SECRET` | encrypted secret | Access service token secret |
+| `STUDIO_INTEGRATION_TOKEN` | encrypted secret | authenticates runner and migration writes to D1/R2 |
+| `ELEVENLABS_API_KEY` | encrypted secret | generates voice and music inside the Pages Function |
+| `ELEVENLABS_VOICE_ID` | encrypted secret | approved ElevenLabs library voice |
+| `STUDIO_RUNNER_ORIGIN` | variable | protected Tunnel origin, for example `https://studio-api.example.com` |
+| `STUDIO_RUNNER_API_TOKEN` | encrypted secret | authenticates Pages to the local runner |
+| `CF_ACCESS_CLIENT_ID` | encrypted secret | Access service-token client ID |
+| `CF_ACCESS_CLIENT_SECRET` | encrypted secret | Access service-token secret |
 
-`STUDIO_INTEGRATION_TOKEN` and `ELEVENLABS_API_KEY` do not belong in Pages.
-They remain in the local runner/Convex production environments.
+Use two different random values for `STUDIO_INTEGRATION_TOKEN` and
+`STUDIO_RUNNER_API_TOKEN`. Neither secret may use a `VITE_*` name.
 
 The Pages build remains:
 
@@ -64,115 +80,128 @@ Build command: npm run build
 Build output directory: dist
 ```
 
-The committed `functions/api/[[path]].ts` proxy is deployed automatically by a
-Git-integrated Pages build. `public/_routes.json` limits Function invocation to
-`/api/*`. After adding or changing bindings, trigger a new Pages deployment.
+The committed `functions/api/[[path]].ts` routes evidence requests to D1/R2 and
+all other API requests through the protected runner proxy. `public/_routes.json`
+limits Function invocation to `/api/*`.
 
-## 4. Local end-to-end check
+## 3. Configure the local runner and Tunnel
 
-For the fast local path, run the deterministic API and Vite in two terminals:
+Copy `.env.example` to `.env.local` and configure:
+
+```text
+CLOUDFLARE_EVIDENCE_URL=https://<pages-domain>
+STUDIO_INTEGRATION_TOKEN=<same integration token as Pages>
+SOULLOOM_RUNNER_API_TOKEN=<different, at-least-32-character token>
+SOULLOOM_HERMES_PROVIDER=<provider>
+SOULLOOM_HERMES_MODEL=<model>
+```
+
+The ElevenLabs key now belongs only to the Pages environment, not the laptop or
+browser. Start and verify the runner:
+
+```bash
+npm run studio:server
+curl http://127.0.0.1:8787/api/health
+```
+
+Create a managed Tunnel hostname such as `studio-api.example.com` pointing to
+`http://127.0.0.1:8787`. Protect it with a Cloudflare Access self-hosted
+application and a `Service Auth` policy. Give only the Pages Function's service
+token access; do not configure a public bypass.
+
+## 4. Migrate existing evidence
+
+Deploy the new Function and bindings before migrating data. The default demo
+audio is migrated from its old storage URLs with:
+
+```bash
+npm run cloudflare:migrate:legacy
+```
+
+To preserve historical runs, export the old `studioRuns` table as JSONL, then
+pass the extracted `documents.jsonl` path:
+
+```bash
+npm run cloudflare:migrate:legacy -- /absolute/path/to/studioRuns/documents.jsonl
+```
+
+The script downloads each legacy voice/music file, writes it to R2, rewrites
+recipe and artifact URLs, and upserts the completed run into D1. It is safe to
+rerun for the same `run_id`. Keep the old service available until the default
+audio and every required historical run have passed the acceptance gate.
+
+## 5. Local end-to-end check
+
+The fast local workflow still uses the deterministic runner and Vite:
 
 ```bash
 npm run studio:server:local
 npm run dev
 ```
 
-Vite proxies `/api` to port 8787 and injects the server-side runner token from
-`.env.local`. To test the actual Pages Function locally, copy
-`.dev.vars.example` to `.dev.vars`, build, and use Wrangler:
+When `CLOUDFLARE_EVIDENCE_URL` is set, Vite proxies `/api/evidence` to that Pages
+deployment and the remaining `/api` routes to port 8787. To emulate the actual
+Pages Function locally instead, copy `.dev.vars.example` to `.dev.vars`, build,
+and pass the D1/R2 bindings to Wrangler:
 
 ```bash
 npm run build
-npx wrangler pages dev dist
+npx wrangler pages dev dist \
+  --d1 SOULLOOM_DB=<database-id> \
+  --r2 SOULLOOM_ARTIFACTS=soulloom-artifacts
 ```
 
-## 5. Production acceptance gate
+## 6. Production acceptance gate
 
 1. `GET https://<pages-domain>/api/health` reports `agentMode: "hermes"`.
-2. Submit a new text run from `/studio`; it immediately opens the live Control
-   Room, which moves through queued and producing states without a cross-origin
-   request.
-3. A duplicate submission with the same idempotency key does not create a
-   second Hermes run.
-4. A second concurrent request receives `429` and `Retry-After: 5`.
-5. The completed run reports `convexEvidence: "mirrored"` and zero undeclared
-   fallbacks.
-6. `/control-room/:runId?job=1` shows events during production; completion stays
-   in the Control Room and unlocks `OPEN BOSS FIGHT`.
-7. `/games/:runId` loads the generated ElevenLabs voice from Convex storage.
-8. Stop the local runner: historical game URLs must remain playable while new
-   production requests fail clearly.
+2. A migrated or newly completed run returns its durable D1 evidence.
+3. Both `/api/evidence/artifacts/demo-fable/*.mp3` URLs support browser playback
+   and byte-range requests.
+4. A Studio submission enters the live Control Room immediately and receives
+   ordered runner SSE updates.
+5. A duplicate idempotency key does not create a second Hermes run; a concurrent
+   production receives `429` and `Retry-After: 5`.
+6. A successful job reports `cloudflareEvidence: "mirrored"`, includes generated
+   voice/music artifacts, and unlocks `OPEN BOSS FIGHT`.
+7. `/games/:runId` loads its recipe from D1 and its audio from R2.
+8. Stop the local runner and Tunnel: the completed Control Room and game still
+   load, while new Studio production fails clearly.
 
-## 6. Runner token rotation and restart runbook
+## 7. Secret rotation and fast diagnosis
 
-The runner and Pages Function must use the same secret under two different
-names:
+The runner API token pair is:
 
 ```text
-local .env.local:                 SOULLOOM_RUNNER_API_TOKEN
-Cloudflare Pages Production:     STUDIO_RUNNER_API_TOKEN
+local .env.local:              SOULLOOM_RUNNER_API_TOKEN
+Cloudflare Pages Production:  STUDIO_RUNNER_API_TOKEN
 ```
 
-Treat `.env.local` as the source of truth. Restart the runner without inheriting
-an older shell value:
+The evidence write token pair is:
 
-```bash
-env -u SOULLOOM_RUNNER_API_TOKEN npm run studio:server
+```text
+local .env.local:              STUDIO_INTEGRATION_TOKEN
+Cloudflare Pages Production:  STUDIO_INTEGRATION_TOKEN
 ```
 
-Whenever the local token changes, or a restarted runner starts returning 401,
-copy the current value to the Pages Production secret without printing it:
+After rotating a Pages secret, redeploy Production. Never paste a secret into a
+`VITE_*` variable, command argument, log, issue, or committed file.
 
-```bash
-env -u SOULLOOM_RUNNER_API_TOKEN node --env-file=.env.local -e '
-const token = process.env.SOULLOOM_RUNNER_API_TOKEN;
-if (!token) throw new Error("SOULLOOM_RUNNER_API_TOKEN is missing");
-process.stdout.write(token);
-' | npx wrangler pages secret put STUDIO_RUNNER_API_TOKEN \
-  --project-name soulloom-buildathon
-```
-
-Pages secret changes require a new Production deployment. Build only from the
-intended, reviewed worktree, then deploy the current production branch:
-
-```bash
-git status --short
-npm run build
-npx wrangler pages deploy dist \
-  --project-name soulloom-buildathon \
-  --branch "$(git branch --show-current)" \
-  --commit-hash "$(git rev-parse HEAD)"
-```
-
-Do not paste either token into `VITE_*`, command arguments, logs, issues, or
-committed files. `wrangler pages secret list` confirms that the binding exists,
-but Cloudflare intentionally cannot reveal its value.
-
-## 7. Fast production diagnosis
-
-`GET /api/health` is intentionally unauthenticated. A `200` health response
-proves that Pages can reach the runner, but it does **not** prove that the two
-runner tokens match.
-
-Use a nonexistent UUID to test Pages-to-runner authentication without starting
-or billing a Hermes production:
+`GET /api/health` proves Pages can reach the runner but does not prove runner
+token equality. Querying a nonexistent Studio UUID is a non-billing auth check:
 
 ```bash
 curl -i \
-  https://soulloom-buildathon.pages.dev/api/studio/runs/00000000-0000-4000-8000-000000000000
+  https://<pages-domain>/api/studio/runs/00000000-0000-4000-8000-000000000000
 ```
 
-Interpret the result before changing configuration:
+| Result | Meaning |
+|---|---|
+| `404 Studio job not found` | runner authentication and proxy routing work |
+| `401 Unauthorized` | Pages and runner tokens differ |
+| `502 Studio runner is unavailable` | runner or Tunnel is unreachable |
+| `503 ... not configured` | a required Pages binding or secret is missing |
+| Cloudflare Access `403` | Access rejected the Pages service token |
 
-| Result | Meaning | Next check |
-|---|---|---|
-| `404 Studio job not found` | Authentication and proxy routing are working | Test a real Studio submission |
-| `401 Unauthorized` | Pages token and runner token differ | Repeat the token sync and Production deployment above |
-| `502 Studio runner is unavailable` | Function cannot reach the configured origin | Check runner process, Tunnel process, and `STUDIO_RUNNER_ORIGIN` |
-| `503 Studio runner proxy is not configured` | A required Pages binding is missing or invalid | Run `wrangler pages secret list` and inspect Production variables |
-| Cloudflare Access `403` or HTML login response | Access policy rejected the Function | Check the Access service-token pair and policy |
-
-After authentication returns the expected `404`, perform the smallest real
-acceptance test: submit one Studio run, poll its `statusUrl`, and require
-`state: completed`, `status: published`, `qaPassed: true`, and
-`convexEvidence: mirrored`.
+For evidence writes, a `401` during job completion means the two
+`STUDIO_INTEGRATION_TOKEN` values differ; a `503` names the missing D1, R2, or
+ElevenLabs binding.

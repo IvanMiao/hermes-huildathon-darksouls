@@ -252,12 +252,13 @@ export function mountLiveControlRoom(root: HTMLElement, runId: string): void {
       bannerTitle.textContent = "PRODUCTION INTERRUPTED";
       bannerDetail.textContent = job.error ?? "The Studio stopped before release QA completed.";
     } else if (job.state === "completed" && job.result?.status === "published") {
-      const evidenceReady = job.result.convexEvidence === "mirrored";
+      const evidenceReady = job.result.cloudflareEvidence === "mirrored"
+        || job.result.convexEvidence === "mirrored";
       banner.classList.add(evidenceReady ? "is-published" : "is-release_blocked");
       bannerTitle.textContent = evidenceReady ? "BOSS FIGHT READY" : "EVIDENCE SYNC FAILED";
       bannerDetail.textContent = evidenceReady
         ? "QA passed and the durable release is ready. Open it when you are ready."
-        : "The fight passed QA, but its durable Convex evidence did not finish syncing.";
+        : "The fight passed QA, but its durable Cloudflare evidence did not finish syncing.";
       if (evidenceReady && job.result.gameUrl) {
         openGame.href = job.result.gameUrl;
         openGame.hidden = false;

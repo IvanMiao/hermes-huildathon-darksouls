@@ -18,16 +18,9 @@ Before changing product scope, architecture, runtime contracts, or integrations,
 
 When implementation and documentation disagree, call out the mismatch instead of silently choosing one.
 
-<!-- convex-ai-start -->
+## Cloudflare backend
 
-This project uses [Convex](https://convex.dev) as its backend.
-
-When working on Convex code, **always read
-`convex/_generated/ai/guidelines.md` first** for important guidelines on
-how to correctly use Convex APIs and patterns. The file contains rules that
-override what you may have learned about Convex from training data.
-
-Convex agent skills for common tasks can be installed by running
-`npx convex ai-files install`.
-
-<!-- convex-ai-end -->
+The durable backend uses Cloudflare Pages Functions, D1, and R2. Keep browser
+reads same-origin under `/api/evidence/*`; keep evidence writes bearer-protected
+with `STUDIO_INTEGRATION_TOKEN`. D1 migrations live in `migrations/`, while R2
+object keys and public routes are defined in `cloudflare/evidenceApi.ts`.

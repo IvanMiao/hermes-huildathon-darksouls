@@ -7,6 +7,8 @@ export interface StartStudioRunResponse {
   runId: string;
   status: "published" | "release_blocked";
   qaPassed?: boolean;
+  cloudflareEvidence?: "disabled" | "mirrored" | "failed";
+  /** Accepted only while an older runner may still be serving an in-flight job. */
   convexEvidence?: "disabled" | "mirrored" | "failed";
   gameUrl: string | null;
   controlRoomUrl: string;

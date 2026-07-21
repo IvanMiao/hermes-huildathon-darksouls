@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { mirrorRunToConvex } from "./convexEvidence";
+import { mirrorRunToCloudflare } from "./cloudflareEvidence";
 import { createStudioRuntime } from "./runtime";
 
 if (existsSync(".env.local")) {
@@ -15,10 +15,10 @@ if (!inputText) {
   const result = await manager.start(inputText);
   let evidence: "disabled" | "mirrored" | "failed" = "disabled";
   try {
-    evidence = (await mirrorRunToConvex(result)).mode;
+    evidence = (await mirrorRunToCloudflare(result)).mode;
   } catch (error) {
     evidence = "failed";
-    console.error(`Convex evidence mirror failed: ${error instanceof Error ? error.message : String(error)}`);
+    console.error(`Cloudflare evidence mirror failed: ${error instanceof Error ? error.message : String(error)}`);
   }
   const retries = result.events.filter(({ type }) => type === "retry_routed");
   const fallbacks = result.artifacts
@@ -36,7 +36,7 @@ if (!inputText) {
     archetype: result.recipe.archetype,
     boss: `${result.recipe.boss.boss.name}, ${result.recipe.boss.boss.title}`,
     qaPassed: result.qaReport.passed,
-    convexEvidence: evidence,
+    cloudflareEvidence: evidence,
     retries: retries.map(({ owner }) => owner),
     fallbacks,
   }, null, 2));

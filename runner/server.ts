@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { mirrorRunToConvex } from "./convexEvidence";
+import { mirrorRunToCloudflare } from "./cloudflareEvidence";
 import { createStudioRuntime } from "./runtime";
 import {
   createStudioApiServer,
@@ -22,15 +22,15 @@ async function produce(
     onEvent: progress.onEvent,
     onArtifact: progress.onArtifact,
   });
-  let convexEvidence: "disabled" | "mirrored" | "failed" = "disabled";
+  let cloudflareEvidence: "disabled" | "mirrored" | "failed" = "disabled";
   try {
-    convexEvidence = (await mirrorRunToConvex(result, {
+    cloudflareEvidence = (await mirrorRunToCloudflare(result, {
       onEvent: progress.onEvent,
       onArtifact: progress.onArtifact,
     })).mode;
   } catch (error) {
-    convexEvidence = "failed";
-    console.error(`Convex evidence mirror failed: ${
+    cloudflareEvidence = "failed";
+    console.error(`Cloudflare evidence mirror failed: ${
       error instanceof Error ? error.message : String(error)
     }`);
   }
@@ -43,7 +43,7 @@ async function produce(
     agentMode,
     qaPassed: result.qaReport.passed,
     fallbacks,
-    convexEvidence,
+    cloudflareEvidence,
     gameUrl: result.status === "published" ? `/games/${result.runId}` : null,
     controlRoomUrl: `/control-room/${result.runId}`,
   };

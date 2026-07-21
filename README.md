@@ -32,18 +32,18 @@ The target deployment keeps the public game stable while the autonomous studio
 runs locally:
 
 ```text
-Cloudflare Pages        Convex                 Local Studio Runner
-/studio                 runs + events          Hermes Manager
-/games/:runId    ↔      specs + QA      ↔      specialist tasks
-fixed runtime           artifact storage       ElevenLabs + Playwright
-                              ▲
-                     protected Tunnel
+Cloudflare Pages + Functions       Local Studio Runner
+/studio + /games/:runId            Hermes Manager
+D1 runs + QA evidence       ↔      specialist tasks
+R2 voice + music                   Playwright QA
+          ▲                              ▲
+          └── evidence writes     protected Tunnel
 ```
 
 The release path is intentionally short:
 
 1. Build and publish the static Studio and game runtime to Cloudflare Pages.
-2. Store run state, approved specs, QA evidence, and generated assets in Convex.
+2. Store approved specs and QA evidence in D1, and generated audio in R2.
 3. Expose only the local runner API through a protected Cloudflare Tunnel.
 4. Publish `/games/:runId` only after deterministic QA passes.
 
@@ -101,7 +101,7 @@ builds. The P3 orchestration core accepts specialist adapters; fixtures remain
 offline and reproducible, while `npm run studio -- "tweet text"` and the browser
 Studio invoke parallel schema-constrained Hermes Creative/Encounter specialists
 through the same Manager-owned artifact boundary.
-Live specialists run in a fail-closed Bubblewrap sandbox: the local home and
+Live specialists currently run in a fail-closed local Bubblewrap sandbox: the local home and
 project are hidden, the working directory is ephemeral, inherited environment
 variables are cleared, and Hermes file/terminal/code tools, plugins, MCP, rules,
 and memory are disabled.
@@ -110,7 +110,9 @@ and memory are disabled.
 asynchronous local API. Cloudflare Pages proxies `/api/*` to its protected
 Tunnel without placing runner or Access tokens in the Vite bundle. A submitted
 run enters the Control Room immediately; durable events and artifacts appear as
-Hermes produces them. Passing QA unlocks `OPEN BOSS FIGHT` without automatically
-opening the game. Deterministic fixtures remain available for offline replay.
+Hermes produces them. After QA passes, the runner mirrors durable evidence to
+D1 and Cloudflare stores generated voice/music in R2. This unlocks `OPEN BOSS
+FIGHT` without automatically opening the game. Deterministic fixtures remain
+available for offline replay.
 See [CLOUDFLARE_DEPLOYMENT.md](./CLOUDFLARE_DEPLOYMENT.md)
 for the production configuration and acceptance gate.

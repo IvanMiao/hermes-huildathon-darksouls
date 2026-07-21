@@ -2,7 +2,7 @@ import { DEFAULT_BOSS_SPEC } from "../boss-spec/defaultBossSpec";
 import type { BattleMusicSpec, GameRecipeV0 } from "./types";
 
 export const DEFAULT_BATTLE_MUSIC_SPEC = {
-  url: "https://cheery-goat-595.eu-west-1.convex.cloud/api/storage/946f7c4d-23c2-4152-a594-d2858f7a3aa2",
+  url: "/api/evidence/artifacts/demo-fable/music.mp3",
   durationMs: 64_000,
   sections: {
     phaseOneLoopStartMs: 6_000,

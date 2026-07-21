@@ -1,7 +1,7 @@
 import "./style.css";
 import type { GameRecipeV0 } from "./game-recipe/types";
 
-interface ConvexPublishedRun {
+interface CloudflarePublishedRun {
   status: "published";
   recipe: GameRecipeV0;
 }
@@ -75,7 +75,7 @@ async function mountControlRoom(runId: string): Promise<void> {
     mountControlRoom(requireAppRoot(), fixture);
     return;
   }
-  const liveRun = toLiveStudioRun(await queryConvexRun(runId));
+  const liveRun = toLiveStudioRun(await queryCloudflareRun(runId));
   if (!liveRun) {
     mountReleaseGate(requireAppRoot(), runId);
     return;
@@ -83,30 +83,27 @@ async function mountControlRoom(runId: string): Promise<void> {
   mountControlRoom(requireAppRoot(), liveRun);
 }
 
-async function queryConvexRun(runId: string): Promise<unknown> {
-  const convexUrl = import.meta.env.VITE_CONVEX_URL;
-  if (!convexUrl) return null;
-
+async function queryCloudflareRun(runId: string): Promise<unknown> {
   try {
-    const [{ ConvexHttpClient }, { makeFunctionReference }] = await Promise.all([
-      import("convex/browser"),
-      import("convex/server"),
-    ]);
-    const client = new ConvexHttpClient(convexUrl);
-    const getRun = makeFunctionReference<"query">("studio:getRun");
-    return await client.query(getRun, { runId });
+    const response = await fetch(
+      `/api/evidence/runs/${encodeURIComponent(runId)}`,
+      { headers: { Accept: "application/json" } },
+    );
+    return response.ok ? await response.json() as unknown : null;
   } catch (error) {
-    console.warn(`Convex run lookup failed; using local evidence: ${
+    console.warn(`Cloudflare run lookup failed; using local evidence: ${
       error instanceof Error ? error.message : String(error)
     }`);
     return null;
   }
 }
 
-async function loadConvexPublishedRun(runId: string): Promise<ConvexPublishedRun | null> {
+async function loadCloudflarePublishedRun(
+  runId: string,
+): Promise<CloudflarePublishedRun | null> {
   const [{ normalizeGameRecipe }, document] = await Promise.all([
     import("./game-recipe/normalize"),
-    queryConvexRun(runId),
+    queryCloudflareRun(runId),
   ]);
   if (
     typeof document !== "object"
@@ -125,9 +122,9 @@ async function loadConvexPublishedRun(runId: string): Promise<ConvexPublishedRun
 }
 
 async function mountPublishedGame(runId: string): Promise<void> {
-  const convexRun = await loadConvexPublishedRun(runId);
-  if (convexRun) {
-    await mountGame(convexRun.recipe);
+  const cloudflareRun = await loadCloudflarePublishedRun(runId);
+  if (cloudflareRun) {
+    await mountGame(cloudflareRun.recipe);
     return;
   }
 

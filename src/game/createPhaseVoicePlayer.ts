@@ -15,13 +15,18 @@ const silentPlayer: PhaseVoicePlayer = {
   dispose: () => undefined,
 };
 
+function isReleaseHostedAudio(url: string): boolean {
+  return url.startsWith("https://")
+    || url.startsWith("/api/evidence/artifacts/");
+}
+
 /** Plays only release-hosted audio. Local placeholder paths remain silent. */
 export function createPhaseVoicePlayer(
   voiceUrl: string,
   interactionTarget: HTMLElement,
   callbacks: PhaseVoicePlaybackCallbacks = {},
 ): PhaseVoicePlayer {
-  if (!voiceUrl.startsWith("https://")) {
+  if (!isReleaseHostedAudio(voiceUrl)) {
     return silentPlayer;
   }
 

@@ -13,14 +13,16 @@
     "studio:server": "tsx runner/server.ts",
     "studio:server:local": "SOULLOOM_AGENT_MODE=local tsx runner/server.ts",
     "studio:fixtures": "tsx runner/runFixtures.ts",
-    "convex:dev": "convex dev",
-    "convex:deploy": "convex deploy",
+    "cloudflare:functions:build": "WRANGLER_WRITE_LOGS=false wrangler pages functions build --outdir .wrangler/pages-functions",
+    "cloudflare:db:create": "wrangler d1 create soulloom-evidence",
+    "cloudflare:db:migrate:local": "wrangler d1 migrations apply soulloom-evidence --local",
+    "cloudflare:db:migrate": "wrangler d1 migrations apply soulloom-evidence --remote",
+    "cloudflare:migrate:legacy": "tsx scripts/migrateLegacyConvexEvidence.ts",
     "typecheck": "tsc --noEmit",
-    "verify": "npm test && npm run typecheck && npm run build && npm run test:e2e"
+    "verify": "npm test && npm run typecheck && npm run build && npm run cloudflare:functions:build && npm run test:e2e"
   },
   "dependencies": {
     "ajv": "^8.20.0",
-    "convex": "^1.42.1",
     "three": "^0.185.1"
   },
   "devDependencies": {
@@ -30,6 +32,7 @@
     "tsx": "^4.23.0",
     "typescript": "5.8.3",
     "vite": "^6.4.3",
-    "vitest": "^3.2.7"
+    "vitest": "^3.2.7",
+    "wrangler": "^4.112.0"
   }
 }

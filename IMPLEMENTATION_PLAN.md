@@ -155,7 +155,7 @@ simulation.
 ## P5 — Event-bound ElevenLabs audio
 
 **Goal:** Generate one phase-two Boss voice and one original, section-addressable
-dark-fantasy score for every published run. Store both in Convex, expose their
+dark-fantasy score for every published run. Store both in Cloudflare R2, expose their
 generation metadata as evidence, and bind their HTTPS URLs into the published
 recipe.
 
@@ -163,12 +163,12 @@ recipe.
 phase two, and aftermath seek to the declared music sections; a new run cannot
 unlock its game route until both audio artifacts are mirrored.
 
-Implemented: a Convex Action calls ElevenLabs Multilingual v2 with an explicit
-high-fidelity character-voice profile, stores the MP3 in Convex File Storage,
+Implemented: a protected Cloudflare Pages Function calls ElevenLabs Multilingual v2
+with an explicit high-fidelity character-voice profile, stores the MP3 in R2,
 and the runtime preloads HTTPS voice artifacts for a single `phase_two`
 playback. Production credential state is managed outside the repository; the
 FABLE's approved cached demo line uses the user-selected Eleven v3 dramatic
-render. A second Convex Action composes a 30-second Music v2 instrumental from
+render. The same evidence API composes a 30-second Music v2 instrumental from
 five fixed-duration chunks, customized from the run's controlled archetype,
 camera mood, and arena vocabulary. Free-form boss and motif text remain in the
 evidence direction but do not enter the provider prompt. `VoiceArtifact` and `MusicArtifact` include model,
@@ -176,23 +176,25 @@ request/song identifiers, storage IDs, URLs, and generation plans in Control
 Room evidence. Cached music remains only for the playground and historical
 recipe migration; it is not presented as new-run evidence.
 
-## P6 — Convex evidence layer and Cloudflare delivery
+## P6 — Cloudflare evidence layer and delivery
 
-**Goal:** Mirror runs/events/artifacts/QA to Convex; deploy the static shell/runtime to Cloudflare Pages; expose only the local runner API through a protected Tunnel.
+**Goal:** Mirror runs/events/artifacts/QA to D1, store generated media in R2,
+deploy the static shell/runtime to Cloudflare Pages, and expose only the local
+runner API through a protected Tunnel.
 
 Order:
 
 1. Deploy static hello-world shell early.
-2. Add Convex run/event subscriptions and artifact storage.
+2. Add D1 run evidence and R2 artifact storage.
 3. Add idempotent start endpoint, CORS allowlist and concurrency limit.
 4. Freeze DNS/Tunnel topology before final polish.
 
 **Verify:** three published historical games remain playable while the local runner is offline.
 
 Implemented in code: the CLI and HTTP runner mirror complete production results
-into `studioRuns`; `/games/:runId` prefers the published Convex recipe and the
+into D1 `studio_runs`; `/games/:runId` prefers the published Cloudflare recipe and the
 Control Room can replay durable mirrored evidence. Active jobs stream ephemeral
-progress through the protected runner route, then Convex becomes the durable
+progress through the protected runner route, then D1/R2 become the durable
 source after completion. The runner API is asynchronous, idempotent,
 bearer-protected, and single-concurrency. A same-origin Pages
 Function holds the runner and Cloudflare Access secrets and proxies only the

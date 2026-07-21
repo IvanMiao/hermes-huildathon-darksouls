@@ -16,7 +16,7 @@ const publishedRun: CompletedStudioRun = {
   agentMode: "hermes",
   qaPassed: true,
   fallbacks: 0,
-  convexEvidence: "mirrored",
+  cloudflareEvidence: "mirrored",
   gameUrl: "/games/live-run",
   controlRoomUrl: "/control-room/live-run",
 };

@@ -3,7 +3,7 @@ import {
   BOSS_MUSIC_DURATION_MS,
   composeBossMusicWithRetry,
   createBossMusicCompositionPlan,
-} from "../convex/music";
+} from "../cloudflare/audioGeneration";
 
 describe("generated boss music plan", () => {
   it("matches the runtime section contract and remains explicitly original", () => {

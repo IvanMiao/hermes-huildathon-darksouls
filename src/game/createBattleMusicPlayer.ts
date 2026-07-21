@@ -22,12 +22,17 @@ const silentPlayer: BattleMusicPlayer = {
   dispose: () => undefined,
 };
 
+function isReleaseHostedAudio(url: string): boolean {
+  return url.startsWith("https://")
+    || url.startsWith("/api/evidence/artifacts/");
+}
+
 /** Keeps the generated score aligned with combat state without blocking play. */
 export function createBattleMusicPlayer(
   music: BattleMusicSpec,
   interactionTarget: HTMLElement,
 ): BattleMusicPlayer {
-  if (!music.url.startsWith("https://")) {
+  if (!isReleaseHostedAudio(music.url)) {
     return silentPlayer;
   }
   const phaseOneLoopStartSeconds = music.sections.phaseOneLoopStartMs / 1_000;

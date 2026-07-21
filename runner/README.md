@@ -76,14 +76,15 @@ npm run studio:server
 npm run dev
 ```
 
-Vite proxies `/api` to `127.0.0.1:8787`. `POST /api/studio/runs` requires an
+Vite proxies Studio requests to `127.0.0.1:8787` and, when configured, evidence
+reads to the Pages deployment. `POST /api/studio/runs` requires an
 `Idempotency-Key`, returns a job immediately, and accepts one production at a
 time. The browser enters the returned Control Room immediately and subscribes
 to the protected same-origin event stream, with bounded polling as a
 rolling-deployment fallback. Each durable event and artifact is included while
-production is running. After deterministic QA, the Audio Producer creates
-per-run phase voice and boss music evidence; both are mirrored to Convex before
-the job becomes complete. `GET /api/health` remains available
+production is running. After deterministic QA, the Pages evidence API creates
+per-run ElevenLabs voice and boss music, stores them in R2, and mirrors the full
+release evidence to D1 before the job becomes complete. `GET /api/health` remains available
 for Tunnel health checks. Text input is live; tweet-image OCR is still a
 labelled fixture path.
 

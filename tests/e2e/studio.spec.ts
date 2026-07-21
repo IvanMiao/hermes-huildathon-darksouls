@@ -51,7 +51,7 @@ test("starts a live Studio run through the runner API", async ({ page }) => {
             runId: requestId,
             status: "published",
             qaPassed: true,
-            convexEvidence: "mirrored",
+            cloudflareEvidence: "mirrored",
             gameUrl: `/games/${requestId}`,
             controlRoomUrl: `/control-room/${requestId}`,
           },
